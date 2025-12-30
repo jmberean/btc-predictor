@@ -23,14 +23,18 @@ class GARCHQuantileModel:
         return self
 
     def predict(self, n: int) -> Dict:
-        forecasts = self.result_.forecast(horizon=1)
-        sigma1 = np.sqrt(forecasts.variance.iloc[-1].values[0]) / 100.0
+        max_steps = max(self.base_steps.values())
+        total_steps = n + max_steps - 1
+        forecasts = self.result_.forecast(horizon=total_steps)
+        var_path = np.asarray(forecasts.variance.iloc[-1].values, dtype=float)
+        sigma_path = np.sqrt(var_path) / 100.0
         preds = {}
         for h in self.horizons:
             step = self.base_steps[h]
-            sigma = sigma1 * np.sqrt(step)
+            start = step - 1
+            sigma = sigma_path[start : start + n]
             preds[h] = {}
             for q in self.quantiles:
                 z = NormalDist().inv_cdf(q)
-                preds[h][q] = np.repeat(z * sigma, n)
+                preds[h][q] = z * sigma
         return preds

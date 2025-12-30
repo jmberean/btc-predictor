@@ -70,17 +70,17 @@ def build_feature_frame(df: pd.DataFrame, cfg: Dict, external_dfs: Optional[List
     trend_slow = df["close"].rolling(regime_window).mean()
     df["trend_regime"] = (trend_fast > trend_slow).astype(int)
 
-    if "mark_close" in df.columns:
-        df["basis_mark"] = df["mark_close"] / df["close"] - 1
-    if "index_close" in df.columns:
-        df["basis_index"] = df["index_close"] / df["close"] - 1
-
     delay_minutes = cfg["data"].get("ohlcv_delay_minutes", 5)
     delay = pd.Timedelta(minutes=delay_minutes)
     df = add_available_at(df, delay)
 
     if external_dfs:
         df = merge_external_features(df, external_dfs)
+
+    if "mark_close" in df.columns:
+        df["basis_mark"] = df["mark_close"] / df["close"] - 1
+    if "index_close" in df.columns:
+        df["basis_index"] = df["index_close"] / df["close"] - 1
 
     df["prediction_time"] = df["available_at"]
 

@@ -34,6 +34,7 @@ def init_model(name: str, cfg, input_size: int) -> object:
         params = cfg.get("lightgbm", {})
         params = dict(params)
         params.setdefault("random_state", cfg.get("seed", 42))
+        params.setdefault("n_jobs", cfg["training"].get("n_jobs", -1))
         return LightGBMQuantileModel(params=params, quantiles=quantiles, horizons=horizons)
     if name == "lstm":
         from btc_predictor.models.deep import LSTMQuantileModel
@@ -50,6 +51,7 @@ def init_model(name: str, cfg, input_size: int) -> object:
             quantiles=quantiles,
             horizons=horizons,
             lookback=cfg["features"].get("lookback_window", 48),
+            device=params.get("device"),
         )
     if name == "nbeats":
         from btc_predictor.models.sota import NBeatsQuantileModel
@@ -67,6 +69,7 @@ def init_model(name: str, cfg, input_size: int) -> object:
             quantiles=quantiles,
             horizons=horizons,
             lookback=cfg["features"].get("lookback_window", 48),
+            device=params.get("device"),
         )
 
     raise ValueError(f"Unknown model: {name}")

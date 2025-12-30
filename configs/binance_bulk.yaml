@@ -33,7 +33,7 @@ training:
     scheme: expanding
     train_window_days: 365
     test_window_days: 45
-    step_days: 45
+    step_days: 180
     embargo_hours: 168
   early_stopping_rounds: 50
   max_trials: 30

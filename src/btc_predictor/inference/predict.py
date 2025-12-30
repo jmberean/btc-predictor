@@ -36,6 +36,14 @@ def _load_data(cfg: Dict) -> pd.DataFrame:
 
 def run_inference(cfg_path: str, model_path: str, asof: str, output_path: str) -> str:
     cfg = load_config(cfg_path)
+    
+    if asof:
+        cfg["data"]["end"] = asof
+        if "external_data" in cfg:
+            for k in cfg["external_data"]:
+                if isinstance(cfg["external_data"][k], dict):
+                    cfg["external_data"][k]["end"] = asof
+
     raw_df = _load_data(cfg)
     external_dfs = load_external_features(cfg)
     feature_df = build_feature_frame(raw_df, cfg, external_dfs=external_dfs)
@@ -44,7 +52,7 @@ def run_inference(cfg_path: str, model_path: str, asof: str, output_path: str) -
     if asof:
         asof_ts = pd.Timestamp(asof, tz="UTC")
     else:
-        asof_ts = pd.Timestamp.utcnow().tz_localize("UTC")
+        asof_ts = pd.Timestamp.now(tz="UTC")
 
     available = feature_df[feature_df["prediction_time"] <= asof_ts].copy()
     if available.empty:

@@ -82,13 +82,17 @@ class NBeatsQuantileModel:
     quantiles: List[float]
     horizons: List
     lookback: int
+    device: Optional[str] = None
 
     def __post_init__(self):
         out_size = len(self.horizons) * len(self.quantiles)
         flat_size = self.input_size * self.lookback
         self.net = NBeatsNet(flat_size, self.hidden_size, self.num_blocks, self.num_layers, self.dropout, out_size)
+        self.device = _resolve_device(self.device)
+        self.net.to(self.device)
 
     def fit(self, x: np.ndarray, y: Dict) -> "NBeatsQuantileModel":
+        self._ensure_device()
         dataset = FlatSequenceDataset(x, y, self.horizons, self.lookback)
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         opt = torch.optim.Adam(self.net.parameters(), lr=self.lr)
@@ -96,6 +100,8 @@ class NBeatsQuantileModel:
 
         for _ in range(self.epochs):
             for xb, yb in loader:
+                xb = xb.to(self.device)
+                yb = yb.to(self.device)
                 pred = self.net(xb)
                 pred = pred.view(-1, len(self.horizons), len(self.quantiles))
                 loss = quantile_loss(pred, yb, self.quantiles)
@@ -105,12 +111,14 @@ class NBeatsQuantileModel:
         return self
 
     def _predict_sequences(self, x: np.ndarray) -> Dict:
+        self._ensure_device()
         self.net.eval()
         dataset = FlatSequenceDataset(x, {h: np.zeros(len(x)) for h in self.horizons}, self.horizons, self.lookback)
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         preds = {h: {q: [] for q in self.quantiles} for h in self.horizons}
         with torch.no_grad():
             for xb, _ in loader:
+                xb = xb.to(self.device)
                 out = self.net(xb).view(-1, len(self.horizons), len(self.quantiles))
                 out_np = out.cpu().numpy()
                 for hi, h in enumerate(self.horizons):
@@ -127,3 +135,25 @@ class NBeatsQuantileModel:
         preds = self._predict_sequences(x)
         trimmed = {h: {q: np.array(v) for q, v in qm.items()} for h, qm in preds.items()}
         return trimmed
+
+    def _ensure_device(self) -> None:
+        desired = _resolve_device(self.device)
+        if desired != self.device:
+            self.device = desired
+        self.net.to(self.device)
+
+
+def _resolve_device(device: Optional[object]) -> torch.device:
+    if device is not None:
+        dev = device if isinstance(device, torch.device) else torch.device(device)
+        if dev.type == "cuda" and torch.cuda.is_available():
+            return dev
+        if dev.type == "mps" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return dev
+        if dev.type == "cpu":
+            return dev
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")

@@ -32,8 +32,8 @@ def _resolve_files(path_or_glob: str) -> List[str]:
     return sorted(glob.glob(path_or_glob))
 
 
-def _read_csv(path: str, columns: List[str]) -> pd.DataFrame:
-    df = pd.read_csv(path, header=None, names=columns)
+def _read_csv(path: str, columns: List[str], usecols: Optional[List[int]] = None) -> pd.DataFrame:
+    df = pd.read_csv(path, header=None, names=columns, usecols=usecols)
     if df.empty:
         return df
     first = str(df.iloc[0, 0]).lower()
@@ -42,14 +42,14 @@ def _read_csv(path: str, columns: List[str]) -> pd.DataFrame:
     return df
 
 
-def _read_zip(path: str, columns: List[str]) -> pd.DataFrame:
+def _read_zip(path: str, columns: List[str], usecols: Optional[List[int]] = None) -> pd.DataFrame:
     frames = []
     with zipfile.ZipFile(path) as zf:
         for name in zf.namelist():
             if not name.lower().endswith(".csv"):
                 continue
             with zf.open(name) as f:
-                frames.append(pd.read_csv(f, header=None, names=columns))
+                frames.append(pd.read_csv(f, header=None, names=columns, usecols=usecols))
     if not frames:
         return pd.DataFrame(columns=columns)
     df = pd.concat(frames, ignore_index=True)
@@ -61,14 +61,14 @@ def _read_zip(path: str, columns: List[str]) -> pd.DataFrame:
     return df
 
 
-def _read_files(path_or_glob: str, columns: List[str]) -> pd.DataFrame:
+def _read_files(path_or_glob: str, columns: List[str], usecols: Optional[List[int]] = None) -> pd.DataFrame:
     files = _resolve_files(path_or_glob)
     frames = []
     for path in files:
         if path.lower().endswith(".zip"):
-            frames.append(_read_zip(path, columns))
+            frames.append(_read_zip(path, columns, usecols=usecols))
         elif path.lower().endswith(".csv"):
-            frames.append(_read_csv(path, columns))
+            frames.append(_read_csv(path, columns, usecols=usecols))
     if not frames:
         return pd.DataFrame(columns=columns)
     return pd.concat(frames, ignore_index=True)
@@ -105,16 +105,59 @@ def _filter_timeframe(df: pd.DataFrame, start: Optional[str], end: Optional[str]
     return df
 
 
+import hashlib
+import os
+
+def _get_cache_path(files: List[str], timeframe: str, tz: str) -> Path:
+    cache_dir = Path("data/.cache")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create a hash based on file paths, timeframe, and timezone
+    content_str = "".join(files) + timeframe + tz
+    file_hash = hashlib.md5(content_str.encode()).hexdigest()
+    
+    return cache_dir / f"binance_bulk_{file_hash}.parquet"
+
+
 def load_binance_bulk_klines(
     path_or_glob: str,
     timeframe: str,
     tz: str = "UTC",
     start: Optional[str] = None,
     end: Optional[str] = None,
+    use_cache: bool = True,
 ) -> pd.DataFrame:
-    raw = _read_files(path_or_glob, KLINE_COLUMNS)
-    if raw.empty:
+    files = _resolve_files(path_or_glob)
+    if not files:
         raise FileNotFoundError(f"No kline files found for {path_or_glob}")
+
+    cache_path = _get_cache_path(files, timeframe, tz)
+
+    if use_cache and cache_path.exists():
+        try:
+            df = pd.read_parquet(cache_path)
+            # Apply runtime filters even if cached (cache stores full range for these files)
+            df = _filter_timeframe(df, start, end)
+            return df
+        except Exception:
+            # If cache is corrupted, fall back to reload
+            pass
+
+    # Existing loading logic using specific files list instead of resolving again
+    frames = []
+    for path in files:
+        if path.lower().endswith(".zip"):
+            frames.append(_read_zip(path, KLINE_COLUMNS, usecols=[0, 1, 2, 3, 4, 5]))
+        elif path.lower().endswith(".csv"):
+            frames.append(_read_csv(path, KLINE_COLUMNS, usecols=[0, 1, 2, 3, 4, 5]))
+            
+    if not frames:
+        raw = pd.DataFrame(columns=KLINE_COLUMNS)
+    else:
+        raw = pd.concat(frames, ignore_index=True)
+
+    if raw.empty:
+         raise FileNotFoundError(f"No valid data found in files for {path_or_glob}")
 
     raw["open_time"] = _to_datetime(raw["open_time"])
     delta = parse_timedelta(timeframe)
@@ -125,8 +168,15 @@ def load_binance_bulk_klines(
 
     df = raw[["timestamp", "open", "high", "low", "close", "volume"]]
     df = ensure_timezone(df, tz=tz)
-    df = _filter_timeframe(df, start, end)
     df = validate_ohlcv(df)
+    
+    if use_cache:
+        try:
+            df.to_parquet(cache_path, index=False)
+        except Exception:
+            pass
+
+    df = _filter_timeframe(df, start, end)
     return df
 
 
@@ -138,7 +188,7 @@ def load_binance_bulk_kline_feature(
     start: Optional[str] = None,
     end: Optional[str] = None,
 ) -> pd.DataFrame:
-    raw = _read_files(path_or_glob, KLINE_COLUMNS)
+    raw = _read_files(path_or_glob, KLINE_COLUMNS, usecols=[0, 4])
     if raw.empty:
         raise FileNotFoundError(f"No kline feature files found for {path_or_glob}")
 

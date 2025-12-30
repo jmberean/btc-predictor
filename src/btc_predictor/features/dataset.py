@@ -15,7 +15,8 @@ def build_targets(raw_df: pd.DataFrame, cfg: Dict) -> pd.DataFrame:
         steps = horizon_to_steps(h, base_frequency)
         df[f"y_{label}"] = np.log(df["close"].shift(-steps) / df["close"])
         df[f"target_time_{label}"] = df["timestamp"] + h
-    return df
+    
+    return df.drop(columns=["close"])
 
 
 def build_supervised_dataset(raw_df: pd.DataFrame, feature_df: pd.DataFrame, cfg: Dict) -> pd.DataFrame:

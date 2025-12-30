@@ -27,16 +27,18 @@ class ARIMAQuantileModel:
 
     def predict(self, n: int) -> Dict:
         max_steps = max(self.base_steps.values())
-        forecast = self.result_.get_forecast(steps=max_steps)
-        mean = forecast.predicted_mean
-        var = forecast.var_pred_mean
+        total_steps = n + max_steps - 1
+        forecast = self.result_.get_forecast(steps=total_steps)
+        mean = np.asarray(forecast.predicted_mean)
+        var = np.asarray(forecast.var_pred_mean)
         preds = {}
         for h in self.horizons:
             step = self.base_steps[h]
-            mu = mean[step - 1]
-            sigma = float(np.sqrt(var[step - 1]))
+            start = step - 1
+            mu = mean[start : start + n]
+            sigma = np.sqrt(var[start : start + n])
             preds[h] = {}
             for q in self.quantiles:
                 z = NormalDist().inv_cdf(q)
-                preds[h][q] = np.repeat(mu + z * sigma, n)
+                preds[h][q] = mu + z * sigma
         return preds

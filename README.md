@@ -119,6 +119,11 @@ python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
+You can also use `uv`:
+```
+uv venv .venv
+uv pip install -r requirements.txt
+```
 
 2) Train (CSV)
 ```
@@ -155,6 +160,11 @@ python scripts/leakage_check.py --config configs/small.yaml
 set PYTHONPATH=src
 python scripts/trading_eval.py --artifacts artifacts/<run_id> --horizon 1h
 ```
+
+## Training notes
+- LightGBM uses a time-ordered validation split when early stopping is enabled; control it with `lightgbm.val_fraction` and `lightgbm.min_val_size` (fallback: `training.val_fraction`).
+- `training.n_jobs` is passed to LightGBM for multi-core training.
+- Deep models auto-select `cuda`/`mps`/`cpu`; you can override with `lstm.device` or `nbeats.device` (e.g., `cpu`).
 
 ## Failure modes and mitigations
 - Leakage via lookahead: enforced available_at, embargoed walk-forward, and target_time checks.

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from statistics import NormalDist
 from typing import Dict, List
 
 import numpy as np
@@ -30,14 +31,13 @@ class RandomWalkBaseline:
     horizons: List
 
     def fit(self, y_train: Dict) -> "RandomWalkBaseline":
-        self.sigma_ = {h: np.std(y_train[h]) for h in self.horizons}
+        self.sigma_ = {h: float(np.std(y_train[h])) for h in self.horizons}
+        self.z_ = {q: NormalDist().inv_cdf(q) for q in self.quantiles}
         return self
 
     def predict(self, n: int) -> Dict:
         preds = {}
         for h in self.horizons:
             sigma = self.sigma_[h]
-            rng = np.random.RandomState(0)
-            sample = rng.normal(0, sigma, 10000)
-            preds[h] = {q: np.repeat(np.quantile(sample, q), n) for q in self.quantiles}
+            preds[h] = {q: np.repeat(self.z_[q] * sigma, n) for q in self.quantiles}
         return preds

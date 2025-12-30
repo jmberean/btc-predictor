@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict
 
 import joblib
 import numpy as np
@@ -15,7 +15,7 @@ from btc_predictor.data.ingestion import fetch_ohlcv_ccxt, load_ohlcv_csv
 from btc_predictor.evaluation.metrics import compute_metrics
 from btc_predictor.evaluation.walk_forward import generate_walk_forward_splits
 from btc_predictor.features.availability import assert_point_in_time
-from btc_predictor.features.dataset import build_supervised_dataset, split_xy
+from btc_predictor.features.dataset import build_supervised_dataset
 from btc_predictor.features.engineering import build_feature_frame, feature_columns
 from btc_predictor.models.registry import init_model
 from btc_predictor.utils.seed import set_seed
@@ -61,6 +61,7 @@ def _tune_lightgbm_params(x_train, y_train, cfg, seed: int):
 
     base_params = dict(cfg.get("lightgbm", {}))
     base_params.setdefault("random_state", seed)
+    base_params.setdefault("n_jobs", cfg["training"].get("n_jobs", -1))
     max_trials = int(cfg["training"].get("max_trials", 10))
     if max_trials <= 1:
         return base_params
@@ -118,6 +119,8 @@ def run_train(cfg_path: str) -> str:
     feature_cols = feature_columns(dataset)
     dataset = dataset.dropna(subset=feature_cols).reset_index(drop=True)
     splits = generate_walk_forward_splits(dataset, cfg)
+    x_all = dataset[feature_cols].to_numpy()
+    y_all = {label: dataset[f"y_{label}"].to_numpy() for label in horizon_labels}
 
     run_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     out_dir = os.path.join("artifacts", run_id)
@@ -129,25 +132,68 @@ def run_train(cfg_path: str) -> str:
     all_importances = []
 
     for model_name in cfg["training"]["models"]:
-        for fold_idx, (train_idx, test_idx) in enumerate(splits):
-            train_df = dataset.loc[train_idx]
-            test_df = dataset.loc[test_idx]
+        print(f"--- Training model: {model_name} ---")
+        # Pre-tune LightGBM once if needed
+        tuned_params = {}
+        if model_name == "lightgbm":
+             # Use the first split's training data for tuning to avoid leakage
+             # Or use a dedicated subset. Here we use the first fold's train set.
+             if len(splits) > 0:
+                 print("Tuning LightGBM parameters...")
+                 tune_train_idx = splits[0][0]
+                 tune_x = x_all[tune_train_idx]
+                 tune_y = {label: y_all[label][tune_train_idx] for label in horizon_labels}
+                 tuned_params = _tune_lightgbm_params(tune_x, tune_y, cfg, seed=cfg.get("seed", 42))
+                 print(f"Best params found: {tuned_params}")
+             else:
+                 # Fallback if no splits
+                 tuned_params = dict(cfg.get("lightgbm", {}))
 
-            x_train, y_train = split_xy(train_df, horizon_labels, feature_cols)
-            x_test, y_test = split_xy(test_df, horizon_labels, feature_cols)
+        num_folds = len(splits)
+        for fold_idx, (train_idx, test_idx) in enumerate(splits):
+            print(f"Fold {fold_idx + 1}/{num_folds}...")
+            test_df = dataset.loc[test_idx]
+            x_train_values = x_all[train_idx]
+            x_test_values = x_all[test_idx]
+            y_train = {label: y_all[label][train_idx] for label in horizon_labels}
+            y_test = {label: y_all[label][test_idx] for label in horizon_labels}
 
             if model_name == "lightgbm":
                 from btc_predictor.models.tree import LightGBMQuantileModel
 
-                tuned_params = _tune_lightgbm_params(x_train.values, y_train, cfg, seed=cfg.get("seed", 42))
                 model = LightGBMQuantileModel(
                     params=tuned_params,
                     quantiles=cfg["training"]["quantiles"],
                     horizons=horizon_labels,
                 )
+                early_stopping = cfg["training"].get("early_stopping_rounds")
+                val_fraction = cfg.get("lightgbm", {}).get("val_fraction", cfg["training"].get("val_fraction", 0.2))
+                min_val_size = cfg.get("lightgbm", {}).get("min_val_size", 100)
+                x_sub = x_train_values
+                y_sub = y_train
+                x_val = None
+                y_val = None
+                if early_stopping:
+                    val_size = int(len(x_train_values) * val_fraction)
+                    if val_size >= min_val_size and len(x_train_values) - val_size >= 1:
+                        x_sub = x_train_values[:-val_size]
+                        x_val = x_train_values[-val_size:]
+                        y_sub = {label: y_train[label][:-val_size] for label in horizon_labels}
+                        y_val = {label: y_train[label][-val_size:] for label in horizon_labels}
+                model.fit(
+                    x_sub,
+                    y_sub,
+                    x_val=x_val,
+                    y_val=y_val,
+                    early_stopping_rounds=early_stopping,
+                    refit_full=bool(x_val is not None),
+                    x_full=x_train_values,
+                    y_full=y_train,
+                )
+                preds = model.predict(x_test_values)
             else:
                 model = init_model(model_name, cfg, input_size=len(feature_cols))
-            preds = _model_fit_predict(model_name, model, x_train.values, y_train, x_test.values)
+                preds = _model_fit_predict(model_name, model, x_train_values, y_train, x_test_values)
 
             for label, h in zip(horizon_labels, horizons):
                 quantile_preds = preds[label]
@@ -204,6 +250,7 @@ def run_train(cfg_path: str) -> str:
                             }
                         )
                     )
+            print(f"Fold {fold_idx + 1} completed.")
 
             model_path = os.path.join(out_dir, "models", f"{model_name}_fold{fold_idx}.joblib")
             try:
