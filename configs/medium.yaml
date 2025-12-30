@@ -1,0 +1,72 @@
+seed: 42
+
+data:
+  source: csv
+  csv_path: data/raw/btc_1h.csv
+  exchange: binance
+  symbol: BTC/USDT
+  timeframe: 1h
+  start: "2017-01-01"
+  end: "2024-01-01"
+  ohlcv_delay_minutes: 5
+  timezone: UTC
+
+features:
+  base_frequency: 1h
+  lags: [1, 2, 3, 6, 12, 24, 48]
+  rolling_windows: [6, 12, 24, 72, 168, 336]
+  rsi_window: 14
+  atr_window: 14
+  regime_window: 336
+  lookback_window: 96
+
+targets:
+  horizons: ["1h", "4h", "1d", "3d", "7d"]
+  target: log_return
+
+training:
+  models: [naive, arima, garch, lightgbm, lstm, nbeats]
+  quantiles: [0.1, 0.5, 0.9]
+  walk_forward:
+    scheme: expanding
+    train_window_days: 365
+    test_window_days: 45
+    step_days: 45
+    embargo_hours: 168
+  early_stopping_rounds: 50
+  max_trials: 30
+  n_jobs: 4
+
+lightgbm:
+  n_estimators: 600
+  learning_rate: 0.03
+  num_leaves: 127
+  min_data_in_leaf: 40
+  subsample: 0.9
+  colsample_bytree: 0.9
+
+lstm:
+  hidden_size: 96
+  num_layers: 2
+  dropout: 0.15
+  epochs: 20
+  batch_size: 128
+  lr: 0.001
+
+nbeats:
+  hidden_size: 512
+  num_blocks: 3
+  num_layers: 4
+  dropout: 0.1
+  epochs: 20
+  batch_size: 128
+  lr: 0.001
+
+evaluation:
+  run_trading_eval: true
+  reliability_bins: 10
+
+trading:
+  fee_bps: 5
+  slippage_bps: 2
+  threshold: 0.0005

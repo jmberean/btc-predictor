@@ -1,0 +1,113 @@
+from typing import Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+
+from btc_predictor.config import get_base_frequency
+from btc_predictor.features.availability import add_available_at
+from btc_predictor.features.external import merge_external_features
+
+
+def _rsi(series: pd.Series, window: int) -> pd.Series:
+    delta = series.diff()
+    gain = delta.clip(lower=0.0)
+    loss = -delta.clip(upper=0.0)
+    avg_gain = gain.rolling(window).mean()
+    avg_loss = loss.rolling(window).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
+def _atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int) -> pd.Series:
+    prev_close = close.shift(1)
+    tr = pd.concat([
+        (high - low).abs(),
+        (high - prev_close).abs(),
+        (low - prev_close).abs(),
+    ], axis=1).max(axis=1)
+    return tr.rolling(window).mean()
+
+
+def build_feature_frame(df: pd.DataFrame, cfg: Dict, external_dfs: Optional[List[pd.DataFrame]] = None) -> pd.DataFrame:
+    df = df.copy()
+    df["log_close"] = np.log(df["close"])
+    df["log_return_1"] = df["log_close"].diff()
+
+    lags: List[int] = cfg["features"]["lags"]
+    rolling_windows: List[int] = cfg["features"]["rolling_windows"]
+    rsi_window: int = cfg["features"]["rsi_window"]
+    atr_window: int = cfg["features"]["atr_window"]
+    regime_window: int = cfg["features"]["regime_window"]
+
+    for lag in lags:
+        df[f"log_return_lag_{lag}"] = df["log_return_1"].shift(lag)
+        df[f"momentum_{lag}"] = df["close"].pct_change(lag)
+
+    for win in rolling_windows:
+        df[f"ret_mean_{win}"] = df["log_return_1"].rolling(win).mean()
+        df[f"ret_std_{win}"] = df["log_return_1"].rolling(win).std()
+        df[f"realized_vol_{win}"] = np.sqrt((df["log_return_1"] ** 2).rolling(win).sum())
+        df[f"volume_z_{win}"] = (
+            (df["volume"] - df["volume"].rolling(win).mean())
+            / df["volume"].rolling(win).std()
+        )
+        df[f"price_sma_{win}"] = df["close"].rolling(win).mean() / df["close"] - 1
+
+    df["range_pct"] = (df["high"] - df["low"]) / df["close"]
+    df["rsi"] = _rsi(df["close"], rsi_window)
+    df["atr"] = _atr(df["high"], df["low"], df["close"], atr_window)
+    df["drawdown"] = df["close"] / df["close"].rolling(regime_window).max() - 1
+
+    df["hour"] = df["timestamp"].dt.hour
+    df["dow"] = df["timestamp"].dt.dayofweek
+    df["is_weekend"] = (df["dow"] >= 5).astype(int)
+
+    vol_ref = df["log_return_1"].rolling(regime_window).std()
+    df["vol_regime"] = (vol_ref > vol_ref.rolling(regime_window).median()).astype(int)
+
+    trend_fast = df["close"].rolling(regime_window // 2).mean()
+    trend_slow = df["close"].rolling(regime_window).mean()
+    df["trend_regime"] = (trend_fast > trend_slow).astype(int)
+
+    if "mark_close" in df.columns:
+        df["basis_mark"] = df["mark_close"] / df["close"] - 1
+    if "index_close" in df.columns:
+        df["basis_index"] = df["index_close"] / df["close"] - 1
+
+    delay_minutes = cfg["data"].get("ohlcv_delay_minutes", 5)
+    delay = pd.Timedelta(minutes=delay_minutes)
+    df = add_available_at(df, delay)
+
+    if external_dfs:
+        df = merge_external_features(df, external_dfs)
+
+    df["prediction_time"] = df["available_at"]
+
+    base_frequency = get_base_frequency(cfg)
+    df["bar_duration_minutes"] = int(base_frequency.total_seconds() // 60)
+    return df
+
+
+def feature_columns(df: pd.DataFrame) -> List[str]:
+    ignore = {
+        "timestamp",
+        "available_at",
+        "prediction_time",
+        "max_target_time",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "log_close",
+        "bar_duration_minutes",
+    }
+    return [
+        c
+        for c in df.columns
+        if c not in ignore
+        and not c.startswith("target_")
+        and not c.startswith("target_time_")
+        and not c.startswith("y_")
+    ]

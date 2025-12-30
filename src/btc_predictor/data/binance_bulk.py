@@ -1,0 +1,195 @@
+import glob
+import zipfile
+from pathlib import Path
+from typing import List, Optional
+
+import pandas as pd
+
+from btc_predictor.config import parse_timedelta
+from btc_predictor.data.schema import ensure_timezone, validate_ohlcv
+
+KLINE_COLUMNS = [
+    "open_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "close_time",
+    "quote_asset_volume",
+    "number_of_trades",
+    "taker_buy_base_asset_volume",
+    "taker_buy_quote_asset_volume",
+    "ignore",
+]
+
+
+def _resolve_files(path_or_glob: str) -> List[str]:
+    path = Path(path_or_glob)
+    if path.is_dir():
+        files = list(path.rglob("*.zip")) + list(path.rglob("*.csv"))
+        return sorted(str(p) for p in files)
+    return sorted(glob.glob(path_or_glob))
+
+
+def _read_csv(path: str, columns: List[str]) -> pd.DataFrame:
+    df = pd.read_csv(path, header=None, names=columns)
+    if df.empty:
+        return df
+    first = str(df.iloc[0, 0]).lower()
+    if "open_time" in first or "funding" in first:
+        df = df.iloc[1:].reset_index(drop=True)
+    return df
+
+
+def _read_zip(path: str, columns: List[str]) -> pd.DataFrame:
+    frames = []
+    with zipfile.ZipFile(path) as zf:
+        for name in zf.namelist():
+            if not name.lower().endswith(".csv"):
+                continue
+            with zf.open(name) as f:
+                frames.append(pd.read_csv(f, header=None, names=columns))
+    if not frames:
+        return pd.DataFrame(columns=columns)
+    df = pd.concat(frames, ignore_index=True)
+    if df.empty:
+        return df
+    first = str(df.iloc[0, 0]).lower()
+    if "open_time" in first or "funding" in first:
+        df = df.iloc[1:].reset_index(drop=True)
+    return df
+
+
+def _read_files(path_or_glob: str, columns: List[str]) -> pd.DataFrame:
+    files = _resolve_files(path_or_glob)
+    frames = []
+    for path in files:
+        if path.lower().endswith(".zip"):
+            frames.append(_read_zip(path, columns))
+        elif path.lower().endswith(".csv"):
+            frames.append(_read_csv(path, columns))
+    if not frames:
+        return pd.DataFrame(columns=columns)
+    return pd.concat(frames, ignore_index=True)
+
+
+def _to_datetime(series: pd.Series) -> pd.Series:
+    values = pd.to_numeric(series, errors="coerce")
+    max_val = values.dropna().max()
+    if pd.isna(max_val):
+        return pd.to_datetime(values, unit="ms", utc=True)
+
+    if max_val > 1e14:
+        us_mask = values > 1e14
+        dt_ms = pd.to_datetime(values.where(~us_mask), unit="ms", utc=True)
+        dt_us = pd.to_datetime(values.where(us_mask), unit="us", utc=True)
+        return dt_ms.fillna(dt_us)
+
+    if max_val > 1e12:
+        unit = "ms"
+    elif max_val > 1e9:
+        unit = "s"
+    else:
+        unit = "ms"
+    return pd.to_datetime(values, unit=unit, utc=True)
+
+
+def _filter_timeframe(df: pd.DataFrame, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
+    if start:
+        start_ts = pd.Timestamp(start, tz="UTC")
+        df = df[df["timestamp"] >= start_ts]
+    if end:
+        end_ts = pd.Timestamp(end, tz="UTC")
+        df = df[df["timestamp"] <= end_ts]
+    return df
+
+
+def load_binance_bulk_klines(
+    path_or_glob: str,
+    timeframe: str,
+    tz: str = "UTC",
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> pd.DataFrame:
+    raw = _read_files(path_or_glob, KLINE_COLUMNS)
+    if raw.empty:
+        raise FileNotFoundError(f"No kline files found for {path_or_glob}")
+
+    raw["open_time"] = _to_datetime(raw["open_time"])
+    delta = parse_timedelta(timeframe)
+    raw["timestamp"] = raw["open_time"] + delta
+
+    for col in ["open", "high", "low", "close", "volume"]:
+        raw[col] = pd.to_numeric(raw[col], errors="coerce")
+
+    df = raw[["timestamp", "open", "high", "low", "close", "volume"]]
+    df = ensure_timezone(df, tz=tz)
+    df = _filter_timeframe(df, start, end)
+    df = validate_ohlcv(df)
+    return df
+
+
+def load_binance_bulk_kline_feature(
+    path_or_glob: str,
+    timeframe: str,
+    prefix: str,
+    tz: str = "UTC",
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> pd.DataFrame:
+    raw = _read_files(path_or_glob, KLINE_COLUMNS)
+    if raw.empty:
+        raise FileNotFoundError(f"No kline feature files found for {path_or_glob}")
+
+    raw["open_time"] = _to_datetime(raw["open_time"])
+    delta = parse_timedelta(timeframe)
+    raw["timestamp"] = raw["open_time"] + delta
+    raw["close"] = pd.to_numeric(raw["close"], errors="coerce")
+
+    df = raw[["timestamp", "close"]].rename(columns={"close": f"{prefix}_close"})
+    df = ensure_timezone(df, tz=tz)
+    df = _filter_timeframe(df, start, end)
+    df = df.sort_values("timestamp").drop_duplicates("timestamp").reset_index(drop=True)
+    return df
+
+
+def load_binance_bulk_funding_rate(
+    path_or_glob: str,
+    tz: str = "UTC",
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> pd.DataFrame:
+    raw = _read_files(path_or_glob, ["col1", "col2", "col3", "col4"])
+    if raw.empty:
+        raise FileNotFoundError(f"No funding rate files found for {path_or_glob}")
+
+    raw = raw[pd.to_numeric(raw.iloc[:, 0], errors="coerce").notna()].copy()
+    if raw.empty:
+        return pd.DataFrame(columns=["timestamp", "funding_rate"])
+
+    col0 = pd.to_numeric(raw.iloc[:, 0], errors="coerce")
+    col1 = pd.to_numeric(raw.iloc[:, 1], errors="coerce") if raw.shape[1] > 1 else None
+    if col0.max(skipna=True) > 1e12:
+        time_col = 0
+    elif col1 is not None and col1.max(skipna=True) > 1e12:
+        time_col = 1
+    else:
+        time_col = 0
+
+    rate_col = 2 if raw.shape[1] > 2 else 1
+    raw = raw.rename(
+        columns={
+            raw.columns[time_col]: "funding_time",
+            raw.columns[rate_col]: "funding_rate",
+        }
+    )
+
+    raw["funding_time"] = _to_datetime(raw["funding_time"])
+    raw["funding_rate"] = pd.to_numeric(raw["funding_rate"], errors="coerce")
+
+    df = raw[["funding_time", "funding_rate"]].rename(columns={"funding_time": "timestamp"})
+    df = ensure_timezone(df, tz=tz)
+    df = _filter_timeframe(df, start, end)
+    df = df.sort_values("timestamp").drop_duplicates("timestamp").reset_index(drop=True)
+    return df
