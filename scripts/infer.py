@@ -10,12 +10,13 @@ from btc_predictor.inference.predict import run_inference
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--model", required=True, nargs="+")
     parser.add_argument("--asof", default=None)
+    parser.add_argument("--weights", type=float, nargs="+", default=None)
     parser.add_argument("--output", default="forecast.csv")
     args = parser.parse_args()
 
-    out_path = run_inference(args.config, args.model, args.asof, args.output)
+    out_path = run_inference(args.config, args.model, args.asof, args.output, weights=args.weights)
     print(out_path)
 
 

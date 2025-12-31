@@ -27,7 +27,7 @@ def load_all_hist():
 # Load history
 hist_df = load_all_hist()
 last_price = hist_df["close"].iloc[-1]
-last_time = int(hist_df["time_dt"].iloc[-1].timestamp()) # Lightweight charts uses unix seconds
+last_time = int(hist_df["time_dt"].iloc[-1].timestamp()) # Unix seconds
 
 hist_json = []
 for row in hist_df.itertuples():
@@ -39,8 +39,8 @@ for row in hist_df.itertuples():
         "close": row.close
     })
 
-# Load forecast
-forecast_df = pd.read_csv("today_5step_forecast.csv")
+# Load ensemble forecast
+forecast_df = pd.read_csv("ensemble_forecast.csv")
 
 forecast_viz = []
 # Start at step 0
@@ -59,6 +59,7 @@ for horizon in ["1h", "2h", "3h", "4h", "5h"]:
     p50_ret = forecast_df[(forecast_df["horizon"] == horizon) & (forecast_df["quantile"] == 0.5)]["y_pred"].values[0]
     p90_ret = forecast_df[(forecast_df["horizon"] == horizon) & (forecast_df["quantile"] == 0.9)]["y_pred"].values[0]
     
+    # Enforce strict quantile order for clean viz
     sorted_rets = sorted([p10_ret, p50_ret, p90_ret])
     
     forecast_viz.append({
@@ -76,4 +77,4 @@ output = {
 with open("viz_data.json", "w") as f:
     json.dump(output, f)
 
-print(f"Updated viz_data.json with context up to {hist_df['time'].iloc[-1]}")
+print(f"Generated viz_data.json with Ensemble data up to {hist_df['time_dt'].iloc[-1]}")

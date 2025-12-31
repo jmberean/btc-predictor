@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict
+from typing import Dict, List, Optional
 
 import joblib
 import pandas as pd
@@ -34,7 +34,7 @@ def _load_data(cfg: Dict) -> pd.DataFrame:
     return load_ohlcv_csv(data_cfg["csv_path"], tz=data_cfg.get("timezone", "UTC"))
 
 
-def run_inference(cfg_path: str, model_path: str, asof: str, output_path: str) -> str:
+def run_inference(cfg_path: str, model_paths: List[str], asof: str, output_path: str, weights: Optional[List[float]] = None) -> str:
     cfg = load_config(cfg_path)
     
     if asof:
@@ -58,35 +58,54 @@ def run_inference(cfg_path: str, model_path: str, asof: str, output_path: str) -
     if available.empty:
         raise ValueError("No features available at the requested asof time")
 
-    model = joblib.load(model_path)
     x = available[feature_cols].values
-
-    if hasattr(model, "lookback"):
-        lookback = model.lookback
-        if len(x) < lookback:
-            raise ValueError("Not enough history for the model lookback window")
-        context = x[:-1]
-        x_last = x[-1:]
-        preds = model.predict(x_last, context=context)
-    else:
-        x_last = x[-1:]
-        try:
-            preds = model.predict(x_last)
-        except TypeError:
-            preds = model.predict(len(x_last))
+    x_last = x[-1:]
 
     horizon_labels = get_horizon_labels(cfg)
     horizon_map = get_horizon_map(cfg)
+    quantiles = cfg["training"]["quantiles"]
+
+    # Initialize ensemble predictions accumulator: horizon -> quantile -> sum_weighted_preds
+    ensemble_preds = {label: {q: 0.0 for q in quantiles} for label in horizon_labels}
+    
+    if weights is None:
+        weights = [1.0 / len(model_paths)] * len(model_paths)
+    
+    total_weight = sum(weights)
+
+    for m_path, weight in zip(model_paths, weights):
+        model = joblib.load(m_path)
+        if hasattr(model, "lookback"):
+            lookback = model.lookback
+            if len(x) < lookback:
+                continue 
+            context = x[:-1]
+            m_preds = model.predict(x_last, context=context)
+        else:
+            try:
+                m_preds = model.predict(x_last)
+            except TypeError:
+                m_preds = model.predict(len(x_last))
+        
+        for label in horizon_labels:
+            for q in quantiles:
+                ensemble_preds[label][q] += m_preds[label][q][-1] * (weight / total_weight)
+
     rows = []
     for label in horizon_labels:
-        for q, pred in preds[label].items():
+        # Final pass: Ensure no quantile crossing by sorting the ensemble results
+        q_vals = [ensemble_preds[label][q] for q in quantiles]
+        q_vals.sort()
+        sorted_preds = dict(zip(sorted(quantiles), q_vals))
+
+        for q in quantiles:
             rows.append(
                 {
                     "prediction_time": available["prediction_time"].iloc[-1],
                     "horizon": label,
                     "horizon_timedelta": str(horizon_map[label]),
                     "quantile": q,
-                    "y_pred": float(pred[-1]),
+                    "y_pred": float(sorted_preds[q]),
                 }
             )
 
