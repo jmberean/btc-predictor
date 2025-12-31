@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC-Predictor Pro Dashboard</title>
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body {
+            background-color: #0f111a;
+            color: #d1d4dc;
+            font-family: 'Inter', -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background-color: #161a25;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            border: 1px solid #2a2e39;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .title-group h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .title-group p {
+            margin: 5px 0 0 0;
+            font-size: 0.9rem;
+            color: #787b86;
+        }
+
+        .insight-panel {
+            background: rgba(41, 98, 255, 0.1);
+            border: 1px solid #2962ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .insight-title {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #2962ff;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .drivers-list {
+            display: flex;
+            gap: 15px;
+            font-size: 0.85rem;
+            color: #eceff1;
+        }
+
+        .driver-tag {
+            background: #2a2e39;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid #363c4e;
+        }
+
+        #chart {
+            height: 550px;
+            width: 100%;
+        }
+
+        .price-badge {
+            background: #26a69a;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 800;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <div class="title-group">
+                <h1>BTC/USDT 10/10 Framework</h1>
+                <p id="ref-time">Ensemble v2.0 • Purely Causal • Z-Score Normalized</p>
+            </div>
+            <div>
+                <div class="price-badge" id="last-price">$0.00</div>
+            </div>
+        </div>
+
+        <div class="insight-panel">
+            <div class="insight-title">Model Explainability: Top Forecast Drivers</div>
+            <div class="drivers-list" id="drivers-list"></div>
+        </div>
+
+        <div style="position: relative;">
+            <div id="chart"></div>
+        </div>
+    </div>
+
+    <script>
+        async function init() {
+            try {
+                const response = await fetch('data.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                // Render Drivers
+                const driverList = document.getElementById('drivers-list');
+                driverList.innerHTML = ''; // Clear existing
+                if (data.drivers) {
+                    data.drivers.forEach(d => {
+                        const div = document.createElement('div');
+                        div.className = 'driver-tag';
+                        div.innerText = d;
+                        driverList.appendChild(div);
+                    });
+                }
+
+                const chartOptions = {
+                    layout: {
+                        background: { type: 'solid', color: '#161a25' },
+                        textColor: '#d1d4dc',
+                    },
+                    grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } },
+                    crosshair: { mode: 0 },
+                    rightPriceScale: { borderColor: '#363c4e' },
+                    timeScale: { borderColor: '#363c4e', timeVisible: true },
+                };
+
+                const chartContainer = document.getElementById('chart');
+                const chart = LightweightCharts.createChart(chartContainer, chartOptions);
+
+                const candleSeries = chart.addCandlestickSeries({
+                    upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+                    wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+                });
+                candleSeries.setData(data.historical);
+
+                if (data.forecast) {
+                    const medianSeries = chart.addLineSeries({
+                        color: '#00e676',
+                        lineWidth: 3,
+                        title: 'Median Forecast (P50)',
+                    });
+                    medianSeries.setData(data.forecast.map(d => ({ time: d.time, value: d.p50 })));
+
+                    const p90Series = chart.addLineSeries({
+                        color: 'rgba(0, 230, 118, 0.2)',
+                        lineWidth: 1,
+                        lineStyle: 2,
+                    });
+                    p90Series.setData(data.forecast.map(d => ({ time: d.time, value: d.p90 })));
+
+                    const p10Series = chart.addLineSeries({
+                        color: 'rgba(0, 230, 118, 0.2)',
+                        lineWidth: 1,
+                        lineStyle: 2,
+                    });
+                    p10Series.setData(data.forecast.map(d => ({ time: d.time, value: d.p10 })));
+                }
+
+                if (data.historical.length > 0) {
+                    const last = data.historical[data.historical.length - 1];
+                    document.getElementById('last-price').innerText = '$' + last.close.toLocaleString();
+                }
+
+                chart.timeScale().fitContent();
+
+                // Handle resize
+                window.addEventListener('resize', () => {
+                    chart.resize(chartContainer.clientWidth, 550);
+                });
+
+            } catch (e) {
+                console.error(e);
+                const container = document.querySelector('.container');
+                const errorDiv = document.createElement('div');
+                errorDiv.style.backgroundColor = 'rgba(239, 83, 80, 0.2)';
+                errorDiv.style.border = '1px solid #ef5350';
+                errorDiv.style.color = '#ef5350';
+                errorDiv.style.padding = '15px';
+                errorDiv.style.borderRadius = '8px';
+                errorDiv.style.marginBottom = '20px';
+                errorDiv.innerHTML = `<strong>Error loading dashboard:</strong> ${e.message}<br><br>
+            If you are opening this file directly, try running a local server:<br>
+            <code>python3 -m http.server</code>`;
+                container.insertBefore(errorDiv, container.firstChild);
+            }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

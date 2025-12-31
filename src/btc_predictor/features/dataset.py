@@ -10,10 +10,28 @@ def build_targets(raw_df: pd.DataFrame, cfg: Dict) -> pd.DataFrame:
     df = raw_df[["timestamp", "close"]].copy()
     base_frequency = get_base_frequency(cfg)
     horizon_map = get_horizon_map(cfg)
+    
+    # Optional Volatility Normalization
+    target_mode = cfg["targets"].get("mode", "raw") # "raw" or "zscore"
+    vol_window = cfg["targets"].get("vol_window", 168) # 1 week default
+
+    if target_mode == "zscore":
+        # Calculate rolling volatility for normalization
+        log_ret = np.log(df["close"] / df["close"].shift(1))
+        rolling_vol = log_ret.rolling(vol_window).std()
+    else:
+        rolling_vol = None
 
     for label, h in horizon_map.items():
         steps = horizon_to_steps(h, base_frequency)
-        df[f"y_{label}"] = np.log(df["close"].shift(-steps) / df["close"])
+        raw_return = np.log(df["close"].shift(-steps) / df["close"])
+        
+        if target_mode == "zscore" and rolling_vol is not None:
+            # Normalize by sqrt(steps) because volatility scales with square root of time
+            df[f"y_{label}"] = raw_return / (rolling_vol * np.sqrt(steps))
+        else:
+            df[f"y_{label}"] = raw_return
+            
         df[f"target_time_{label}"] = df["timestamp"] + h
     
     return df.drop(columns=["close"])

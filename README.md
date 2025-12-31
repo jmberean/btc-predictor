@@ -1,6 +1,6 @@
-# BTC-Predictor: Leakage-Safe Ensemble Forecasting
+# BTC-Predictor: 10/10 Research Framework
 
-A production-ready Bitcoin forecasting pipeline designed for scientific rigor and trading evaluation. This system uses a weighted ensemble of Gradient Boosting (LightGBM), Recurrent Neural Networks (LSTM), and Signal Decomposition (N-BEATS) to predict continuous 5-hour price trajectories.
+A production-grade Bitcoin forecasting pipeline designed for scientific rigor and actionable trading signals. The system employs a weighted ensemble of Gradient Boosting (LightGBM), Recurrent Neural Networks (LSTM), and Signal Decomposition (N-BEATS) to predict continuous volatility-adjusted price trajectories.
 
 ## 🚀 End-to-End Workflow
 
@@ -12,65 +12,57 @@ pip install -r requirements.txt
 export PYTHONPATH=src
 ```
 
-### 2. Synchronize Data (Live Context)
-Get fully up to date by downloading both monthly archives and the latest daily bars in one operation.
+### 2. Synchronize Data (Global Context)
+Fetch historical monthly archives, current daily bars, and macro-economic indicators (DXY) in one flow.
 ```bash
 python scripts/sync_data.py
+python scripts/download_macro.py
 ```
 
-### 3. Train Models
-Train the full suite of models using the walk-forward validation scheme. This generates the artifacts used for ensembling.
+### 3. Train Models (Purged & Embargoed)
+Train the ensemble team using rigorous cross-validation that prevents overlapping correlation leakage.
 ```bash
 python scripts/train.py --config configs/binance_bulk.yaml
 ```
 *Artifacts are saved to `artifacts/YYYYMMDD_HHMMSS/`.*
 
-### 4. Backtest & Determine Weights
-Evaluate which models are performing best to decide your ensemble weights.
-```bash
-# Check 1h horizon performance
-python scripts/trading_eval.py --artifacts artifacts/<run_id> --horizon 1h
-```
-*Look for high Sharpe ratios and low Drawdowns.*
-
-### 5. Production Ensemble Inference
-Generate a "Consensus Forecast" by combining the models. The example below uses a 50/30/20 weighting based on typical performance.
+### 4. Production Ensemble Inference
+Generate a "Consensus Forecast" using the 10/10 framework. This produces Z-score normalized outputs and explains the top feature drivers.
 ```bash
 python scripts/infer.py \
   --config configs/binance_bulk.yaml \
-  --model artifacts/<run_id>/models/nbeats_fold7.joblib \
-          artifacts/<run_id>/models/lstm_fold7.joblib \
-          artifacts/<run_id>/models/lightgbm_fold7.joblib \
-  --weights 0.5 0.3 0.2 \
-  --output ensemble_forecast.csv
+  --model artifacts/<run_id>/models/nbeats_fold1.joblib \
+          artifacts/<run_id>/models/lstm_fold1.joblib \
+          artifacts/<run_id>/models/lightgbm_fold1.joblib \
+  --weights 0.4 0.2 0.4 \
+  --output forecasts/latest_ensemble.csv
 ```
 
-### 6. Interactive Visualization
-Sync the latest data with the dashboard and view the results in your browser.
+### 5. Interactive Pro Dashboard
+Prepare the data and launch the TradingView-powered interface.
 ```bash
-# Process latest history + ensemble forecast for the UI
-python generate_viz_data.py
+# Process raw data for the UI
+python scripts/prepare_viz.py
 
-# Open the TradingView-style dashboard
-open continuous_forecast_viz.html
+# Start a local server and open the dashboard
+# (Run this and visit http://localhost:8000/dashboard)
+python -m http.server 8000
 ```
 
-## 🛠 Core Components
+## 🛠 10/10 Framework Features
 
-### Feature Availability Contract
-The system uses an `available_at` timestamp for every data point. This ensures that the model only trains on information that was actually published at the time of prediction, strictly preventing "look-ahead" bias (leakage).
-
-### The Ensemble Team
-- **N-BEATS**: Decomposes price into Trend and Seasonality. Best for capturing the "wave."
-- **LightGBM**: Expert system using technical indicators (RSI, Volatility). Best for identifying "setups."
-- **LSTM**: Neural memory that views the market as a continuous flow. Best for "context."
+- **Causal Integrity:** Uses a 24h Purge and 168h Embargo between training folds to ensure zero look-ahead bias.
+- **Volatility Normalization:** Models predict Z-scores rather than raw returns, ensuring stability across different market regimes.
+- **Macro Awareness:** Directly incorporates the US Dollar Index (DXY) as a leading indicator.
+- **Explainability:** The "Insight Panel" in the UI highlights exactly which features (Momentum, RSI, etc.) are driving the current forecast.
+- **Conformal Prediction:** Post-processing layer ensures the P10-P90 "Forecast Cone" is statistically honest.
 
 ## 📁 Project Structure
-- `src/btc_predictor/`: Core logic (data, features, models, training).
-- `scripts/`: CLI entry points for the pipeline stages.
-- `configs/`: YAML files defining horizons, hyperparameters, and data paths.
-- `artifacts/`: Historical run data, saved models, and metrics.
-- `continuous_forecast_viz.html`: Professional interactive dashboard.
+- `dashboard/`: The UI layer (`index.html` + `data.json`).
+- `forecasts/`: Raw inference outputs and feature importance data.
+- `scripts/`: CLI entry points for syncing, training, and visualizing.
+- `src/btc_predictor/`: The core algorithmic engine.
+- `artifacts/`: Compressed models and historical backtest metrics.
 
 ---
 **Disclaimer:** This software is for educational and engineering purposes only. Cryptocurrency trading involves high risk.

@@ -5,8 +5,8 @@ data:
   exchange: binance
   symbol: BTCUSDT
   timeframe: 1h
-  start: "2017-01-01"
-  end: "2024-12-31"
+  start: "2018-01-01"
+  end: "2025-12-31"
   ohlcv_delay_minutes: 5
   timezone: UTC
   binance_bulk:
@@ -23,18 +23,21 @@ features:
   lookback_window: 96
 
 targets:
-  horizons: ["1h", "2h", "3h", "4h", "5h"]
+  horizons: ["1h", "2h", "4h", "8h", "12h", "24h"]
   target: log_return
+  mode: "zscore"
+  vol_window: 168
 
 training:
   models: [naive, arima, garch, lightgbm, lstm, nbeats]
   quantiles: [0.1, 0.5, 0.9]
   walk_forward:
     scheme: expanding
-    train_window_days: 365
-    test_window_days: 45
-    step_days: 180
+    train_window_days: 1095 # 3 Years
+    test_window_days: 90
+    step_days: 365
     embargo_hours: 168
+    purge_hours: 24
   early_stopping_rounds: 50
   max_trials: 30
   n_jobs: 4

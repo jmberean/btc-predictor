@@ -67,4 +67,14 @@ def load_external_features(cfg: Dict) -> List[pd.DataFrame]:
             df["available_at"] = df["timestamp"] + delay
             dfs.append(df)
 
+    macro_cfg = ext_cfg.get("macro")
+    if macro_cfg and macro_cfg.get("path"):
+        # Generic macro CSV loader: timestamp, value
+        df = pd.read_csv(macro_cfg["path"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df = df.rename(columns={df.columns[1]: "macro_val"})
+        delay = pd.Timedelta(minutes=macro_cfg.get("delay_minutes", 60))
+        df["available_at"] = df["timestamp"] + delay
+        dfs.append(df)
+
     return dfs

@@ -30,7 +30,7 @@ def main():
 
     results = []
     for model, group in df.groupby("model"):
-        metrics = backtest_simple(
+        metrics, history = backtest_simple(
             timestamps=group["timestamp"],
             y_true=group["y_true"].values,
             y_pred_median=group["y_pred"].values,
@@ -40,6 +40,13 @@ def main():
         )
         metrics.update({"model": model, "horizon": args.horizon})
         results.append(metrics)
+        
+        # Save detailed trade history for each model
+        history["model"] = model
+        history["horizon"] = args.horizon
+        history_path = os.path.join(args.artifacts, f"trades_{model}_{args.horizon}.csv")
+        history.to_csv(history_path, index=False)
+        print(f"Saved trades for {model} to {history_path}")
 
     out_df = pd.DataFrame(results)
     out_df.to_csv(os.path.join(args.artifacts, "trading_metrics.csv"), index=False)
