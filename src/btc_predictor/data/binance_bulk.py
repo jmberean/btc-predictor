@@ -24,7 +24,13 @@ KLINE_COLUMNS = [
 ]
 
 
-def _resolve_files(path_or_glob: str) -> List[str]:
+def _resolve_files(path_or_glob: str | List[str]) -> List[str]:
+    if isinstance(path_or_glob, list):
+        all_files = []
+        for p in path_or_glob:
+            all_files.extend(_resolve_files(p))
+        return sorted(list(set(all_files)))
+    
     path = Path(path_or_glob)
     if path.is_dir():
         files = list(path.rglob("*.zip")) + list(path.rglob("*.csv"))

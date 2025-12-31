@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC-Predictor Pro Dashboard</title>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body {
+            background-color: #131722;
+            color: #d1d4dc;
+            font-family: 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background-color: #1e222d;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #2a2e39;
+            padding-bottom: 10px;
+        }
+        .title-group h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #fff;
+        }
+        .title-group p {
+            margin: 5px 0 0 0;
+            font-size: 0.85rem;
+            color: #787b86;
+        }
+        #chart {
+            height: 600px;
+            width: 100%;
+        }
+        .legend {
+            position: absolute;
+            left: 30px;
+            top: 100px;
+            z-index: 2;
+            font-size: 12px;
+            pointer-events: none;
+            background: rgba(30, 34, 45, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="title-group">
+            <h1>BTCUSDT Forecast</h1>
+            <p id="ref-time">Reference: Dec 30, 2025 • Interval: 1H</p>
+        </div>
+        <div style="text-align: right">
+            <div style="font-size: 1.2rem; color: #00ff88; font-weight: bold;" id="last-price">$0.00</div>
+            <div style="font-size: 0.7rem; color: #787b86">LIVE PRODUCTION INFERENCE</div>
+        </div>
+    </div>
+
+    <div style="position: relative;">
+        <div class="legend">
+            <div class="legend-item"><div class="dot" style="background: #2962FF"></div> <span>Historical OHLC</span></div>
+            <div class="legend-item"><div class="dot" style="background: #00e676"></div> <span>P50 (Expected Path)</span></div>
+            <div class="legend-item"><div class="dot" style="background: rgba(0, 230, 118, 0.3)"></div> <span>Uncertainty Cone (P10-P90)</span></div>
+        </div>
+        <div id="chart"></div>
+    </div>
+</div>
+
+<script>
+    const data = {"historical": [{"time": 1766692800, "open": 87892.69, "high": 88167.65, "low": 87650.0, "close": 87892.69}, {"time": 1766696400, "open": 87892.69, "high": 87982.98, "low": 87820.0, "close": 87901.21}, {"time": 1766700000, "open": 87901.22, "high": 87915.1, "low": 87311.0, "close": 87650.0}, {"time": 1766703600, "open": 87649.99, "high": 87771.01, "low": 86934.72, "close": 87225.27}, {"time": 1766707200, "open": 87225.27, "high": 87320.1, "low": 86891.7, "close": 87120.0}, {"time": 1766710800, "open": 87119.99, "high": 87500.0, "low": 87119.99, "close": 87432.26}, {"time": 1766714400, "open": 87432.26, "high": 89440.0, "low": 87416.04, "close": 89199.99}, {"time": 1766718000, "open": 89200.0, "high": 89289.99, "low": 88714.36, "close": 88844.87}, {"time": 1766721600, "open": 88844.88, "high": 89153.17, "low": 88516.73, "close": 88969.24}, {"time": 1766725200, "open": 88969.24, "high": 89045.71, "low": 88828.06, "close": 88996.58}, {"time": 1766728800, "open": 88996.58, "high": 89250.0, "low": 88996.58, "close": 89124.24}, {"time": 1766732400, "open": 89124.24, "high": 89567.75, "low": 88347.45, "close": 88470.75}, {"time": 1766736000, "open": 88470.75, "high": 88886.0, "low": 88414.81, "close": 88742.28}, {"time": 1766739600, "open": 88742.28, "high": 88918.59, "low": 88649.63, "close": 88811.76}, {"time": 1766743200, "open": 88811.77, "high": 88882.01, "low": 88680.0, "close": 88748.34}, {"time": 1766746800, "open": 88748.35, "high": 88754.69, "low": 88532.0, "close": 88533.42}, {"time": 1766750400, "open": 88533.43, "high": 88761.45, "low": 88533.42, "close": 88678.9}, {"time": 1766754000, "open": 88678.89, "high": 89050.0, "low": 88618.14, "close": 88992.88}, {"time": 1766757600, "open": 88992.88, "high": 89049.88, "low": 87345.88, "close": 87380.43}, {"time": 1766761200, "open": 87380.44, "high": 87381.0, "low": 86655.08, "close": 87137.81}, {"time": 1766764800, "open": 87137.81, "high": 87380.0, "low": 86850.38, "close": 86855.82}, {"time": 1766768400, "open": 86855.83, "high": 87463.77, "low": 86818.18, "close": 87331.91}, {"time": 1766772000, "open": 87331.91, "high": 87380.0, "low": 87117.11, "close": 87277.77}, {"time": 1766775600, "open": 87277.78, "high": 87580.29, "low": 87246.0, "close": 87501.83}, {"time": 1766779200, "open": 87501.83, "high": 87792.7, "low": 87399.71, "close": 87585.77}, {"time": 1766782800, "open": 87585.76, "high": 87697.81, "low": 87460.57, "close": 87470.59}, {"time": 1766786400, "open": 87470.59, "high": 87592.67, "low": 87321.4, "close": 87550.0}, {"time": 1766790000, "open": 87549.99, "high": 87550.09, "low": 87331.85, "close": 87369.56}, {"time": 1766793600, "open": 87369.56, "high": 87414.26, "low": 87253.05, "close": 87401.07}, {"time": 1766797200, "open": 87401.08, "high": 87492.66, "low": 87333.0, "close": 87475.03}, {"time": 1766800800, "open": 87475.03, "high": 87492.66, "low": 87392.64, "close": 87446.02}, {"time": 1766804400, "open": 87446.01, "high": 87532.0, "low": 87386.97, "close": 87514.22}, {"time": 1766808000, "open": 87514.23, "high": 87516.84, "low": 87463.32, "close": 87470.19}, {"time": 1766811600, "open": 87470.19, "high": 87512.8, "low": 87446.19, "close": 87506.0}, {"time": 1766815200, "open": 87506.01, "high": 87566.0, "low": 87417.93, "close": 87469.02}, {"time": 1766818800, "open": 87469.02, "high": 87702.0, "low": 87469.01, "close": 87539.26}, {"time": 1766822400, "open": 87539.26, "high": 87677.0, "low": 87539.25, "close": 87593.0}, {"time": 1766826000, "open": 87593.01, "high": 87665.62, "low": 87533.84, "close": 87618.91}, {"time": 1766829600, "open": 87618.9, "high": 87627.67, "low": 87370.73, "close": 87503.01}, {"time": 1766833200, "open": 87503.02, "high": 87549.97, "low": 87442.15, "close": 87475.98}, {"time": 1766836800, "open": 87475.99, "high": 87515.21, "low": 87422.41, "close": 87474.28}, {"time": 1766840400, "open": 87474.28, "high": 87478.37, "low": 87308.05, "close": 87452.78}, {"time": 1766844000, "open": 87452.79, "high": 87544.91, "low": 87390.16, "close": 87544.9}, {"time": 1766847600, "open": 87544.89, "high": 87589.99, "low": 87484.71, "close": 87551.25}, {"time": 1766851200, "open": 87551.26, "high": 87583.47, "low": 87442.08, "close": 87498.41}, {"time": 1766854800, "open": 87498.42, "high": 87562.79, "low": 87467.33, "close": 87562.58}, {"time": 1766858400, "open": 87562.57, "high": 87572.41, "low": 87463.76, "close": 87500.01}, {"time": 1766862000, "open": 87500.01, "high": 87591.0, "low": 87500.0, "close": 87569.39}, {"time": 1766865600, "open": 87569.39, "high": 87635.77, "low": 87523.78, "close": 87555.92}, {"time": 1766869200, "open": 87555.92, "high": 87668.23, "low": 87555.91, "close": 87668.22}, {"time": 1766872800, "open": 87668.23, "high": 87955.0, "low": 87499.99, "close": 87565.99}, {"time": 1766876400, "open": 87566.0, "high": 87984.0, "low": 87565.99, "close": 87877.01}, {"time": 1766880000, "open": 87877.0, "high": 87961.37, "low": 87705.97, "close": 87854.96}, {"time": 1766883600, "open": 87854.97, "high": 87945.39, "low": 87739.06, "close": 87785.96}, {"time": 1766887200, "open": 87785.97, "high": 87872.67, "low": 87755.8, "close": 87810.78}, {"time": 1766890800, "open": 87810.79, "high": 87845.45, "low": 87725.47, "close": 87740.01}, {"time": 1766894400, "open": 87740.0, "high": 87837.99, "low": 87693.0, "close": 87724.87}, {"time": 1766898000, "open": 87724.86, "high": 87724.87, "low": 87614.79, "close": 87657.93}, {"time": 1766901600, "open": 87657.94, "high": 87784.2, "low": 87647.42, "close": 87732.0}, {"time": 1766905200, "open": 87732.01, "high": 87734.98, "low": 87675.87, "close": 87730.85}, {"time": 1766908800, "open": 87730.86, "high": 87972.95, "low": 87730.86, "close": 87805.0}, {"time": 1766912400, "open": 87805.0, "high": 87900.0, "low": 87720.0, "close": 87800.0}, {"time": 1766916000, "open": 87800.0, "high": 88010.0, "low": 87799.99, "close": 87856.91}, {"time": 1766919600, "open": 87856.91, "high": 87923.5, "low": 87818.58, "close": 87883.25}, {"time": 1766923200, "open": 87883.25, "high": 87891.32, "low": 87794.86, "close": 87850.6}, {"time": 1766926800, "open": 87850.59, "high": 87962.45, "low": 87820.0, "close": 87896.59}, {"time": 1766930400, "open": 87896.6, "high": 88088.75, "low": 87896.59, "close": 87910.0}, {"time": 1766934000, "open": 87910.0, "high": 88006.0, "low": 87824.18, "close": 87836.27}, {"time": 1766937600, "open": 87836.27, "high": 87898.42, "low": 87740.0, "close": 87814.04}, {"time": 1766941200, "open": 87814.04, "high": 87931.59, "low": 87760.0, "close": 87760.0}, {"time": 1766944800, "open": 87760.01, "high": 87768.79, "low": 87500.26, "close": 87598.49}, {"time": 1766948400, "open": 87598.49, "high": 87698.3, "low": 87511.27, "close": 87520.75}, {"time": 1766952000, "open": 87520.75, "high": 87655.28, "low": 87446.73, "close": 87514.76}, {"time": 1766955600, "open": 87514.75, "high": 87592.67, "low": 87435.0, "close": 87588.37}, {"time": 1766959200, "open": 87588.37, "high": 87992.7, "low": 87481.55, "close": 87900.09}, {"time": 1766962800, "open": 87900.09, "high": 88049.53, "low": 87634.92, "close": 87952.71}, {"time": 1766966400, "open": 87952.71, "high": 88444.19, "low": 87813.17, "close": 88295.69}, {"time": 1766970000, "open": 88295.68, "high": 88480.0, "low": 87849.42, "close": 88445.57}, {"time": 1766973600, "open": 88445.57, "high": 89383.74, "low": 88445.57, "close": 89163.25}, {"time": 1766977200, "open": 89163.25, "high": 90169.06, "low": 89101.79, "close": 90123.55}, {"time": 1766980800, "open": 90123.55, "high": 90406.08, "low": 89952.81, "close": 90143.06}, {"time": 1766984400, "open": 90143.07, "high": 90300.07, "low": 89931.37, "close": 89984.0}, {"time": 1766988000, "open": 89984.0, "high": 90121.21, "low": 89749.87, "close": 89777.26}, {"time": 1766991600, "open": 89777.25, "high": 89846.71, "low": 89507.03, "close": 89617.71}, {"time": 1766995200, "open": 89617.71, "high": 89825.01, "low": 89444.47, "close": 89555.1}, {"time": 1766998800, "open": 89555.1, "high": 89618.22, "low": 87770.1, "close": 88100.05}, {"time": 1767002400, "open": 88100.5, "high": 88270.02, "low": 87653.69, "close": 87780.01}, {"time": 1767006000, "open": 87780.0, "high": 87793.27, "low": 87567.65, "close": 87567.66}, {"time": 1767009600, "open": 87567.65, "high": 87636.34, "low": 86806.5, "close": 87397.0}, {"time": 1767013200, "open": 87396.99, "high": 87537.23, "low": 87165.04, "close": 87387.71}, {"time": 1767016800, "open": 87387.7, "high": 88190.71, "low": 87259.3, "close": 87429.96}, {"time": 1767020400, "open": 87429.97, "high": 87918.69, "low": 87222.41, "close": 87691.62}, {"time": 1767024000, "open": 87691.62, "high": 87840.08, "low": 87439.03, "close": 87627.11}, {"time": 1767027600, "open": 87627.11, "high": 87850.0, "low": 87350.0, "close": 87849.99}, {"time": 1767031200, "open": 87850.0, "high": 87996.22, "low": 87361.53, "close": 87464.77}, {"time": 1767034800, "open": 87464.78, "high": 87668.23, "low": 87312.34, "close": 87366.23}, {"time": 1767038400, "open": 87366.23, "high": 87597.59, "low": 87085.8, "close": 87212.01}, {"time": 1767042000, "open": 87212.01, "high": 87371.62, "low": 87173.31, "close": 87337.85}, {"time": 1767045600, "open": 87337.85, "high": 87404.29, "low": 87071.49, "close": 87351.05}, {"time": 1767049200, "open": 87351.05, "high": 87395.07, "low": 87188.0, "close": 87237.13}], "forecast": [{"time": 1767049200, "p10": 87237.13, "p50": 87237.13, "p90": 87237.13}, {"time": 1767052800, "p10": 84005.09501677209, "p50": 84261.7845080742, "p90": 85431.06714591221}, {"time": 1767056400, "p10": 82209.28667726896, "p50": 90869.66592226189, "p90": 91126.72950261849}, {"time": 1767060000, "p10": 83357.58468338361, "p50": 85646.4292297952, "p90": 88511.624250037}, {"time": 1767063600, "p10": 85060.82305276307, "p50": 85913.52917204128, "p90": 93305.94304278666}, {"time": 1767067200, "p10": 81300.74801919109, "p50": 83666.45305585, "p90": 86247.75089618107}]};
+
+    const chartOptions = {
+        layout: {
+            background: { type: 'solid', color: '#131722' },
+            textColor: '#d1d4dc',
+        },
+        grid: {
+            vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
+            horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
+        },
+        crosshair: {
+            mode: 0, // Magnet mode
+        },
+        rightPriceScale: {
+            borderColor: 'rgba(197, 203, 206, 0.8)',
+        },
+        timeScale: {
+            borderColor: 'rgba(197, 203, 206, 0.8)',
+            timeVisible: true,
+            secondsVisible: false,
+        },
+    };
+
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), chartOptions);
+
+    // 1. Candlestick Series for History
+    const candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+        wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+    });
+    candleSeries.setData(data.historical);
+
+    // 2. Median Line for Forecast
+    const medianSeries = chart.addLineSeries({
+        color: '#00e676',
+        lineWidth: 3,
+        lineStyle: LightweightCharts.LineStyle.Solid,
+        lastValueVisible: true,
+        title: 'Expected Path',
+    });
+    medianSeries.setData(data.forecast.map(d => ({ time: d.time, value: d.p50 })));
+
+    // 3. Uncertainty Cone (P10 and P90)
+    // Lightweight charts doesn't have a built-in "area between two lines" yet,
+    // so we use two lines with thin styles.
+    const p90Series = chart.addLineSeries({
+        color: 'rgba(0, 230, 118, 0.4)',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        lastValueVisible: false,
+    });
+    p90Series.setData(data.forecast.map(d => ({ time: d.time, value: d.p90 })));
+
+    const p10Series = chart.addLineSeries({
+        color: 'rgba(0, 230, 118, 0.4)',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        lastValueVisible: false,
+    });
+    p10Series.setData(data.forecast.map(d => ({ time: d.time, value: d.p10 })));
+
+    // Update Header
+    const lastPrice = data.historical[data.historical.length - 1].close;
+    document.getElementById('last-price').innerText = '$' + lastPrice.toLocaleString();
+    
+    const lastTime = new Date(data.historical[data.historical.length - 1].time * 1000).toLocaleString();
+    document.getElementById('ref-time').innerText = `Reference: ${lastTime} • Interval: 1H`;
+
+    // Final view adjustments
+    chart.timeScale().fitContent();
+
+</script>
+</body>
+</html>

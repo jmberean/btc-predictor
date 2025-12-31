@@ -10,7 +10,7 @@ data:
   ohlcv_delay_minutes: 5
   timezone: UTC
   binance_bulk:
-    klines_path: data/binance/data/spot/monthly/klines/BTCUSDT/1h
+    klines_path: ["data/binance/data/spot/monthly/klines/BTCUSDT/1h", "data/binance/data/spot/daily/klines/BTCUSDT/1h"]
     timeframe: 1h
 
 features:
@@ -23,7 +23,7 @@ features:
   lookback_window: 96
 
 targets:
-  horizons: ["1h", "4h", "1d", "3d", "7d"]
+  horizons: ["1h", "2h", "3h", "4h", "5h"]
   target: log_return
 
 training:
