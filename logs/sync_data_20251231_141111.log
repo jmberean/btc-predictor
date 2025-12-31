@@ -1,0 +1,9 @@
+--- Session Started: 20251231_141111 ---
+--- Log File: logs/sync_data_20251231_141111.log ---
+--- Synchronizing Monthly Archives ---
+Executing: /Users/johnb/Workspace/btc-predictor/.venv/bin/python scripts/download_binance_bulk.py --asset spot --data-type klines --data-frequency 1h --symbols BTCUSDT --output-dir data/binance --timeperiod monthly
+
+--- Synchronizing Daily Bars (Current Month) ---
+Executing: /Users/johnb/Workspace/btc-predictor/.venv/bin/python scripts/download_binance_bulk.py --asset spot --data-type klines --data-frequency 1h --symbols BTCUSDT --output-dir data/binance --timeperiod daily
+
+✅ Sync Complete. Data is up to date.

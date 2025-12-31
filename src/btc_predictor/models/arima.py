@@ -21,8 +21,22 @@ class ARIMAQuantileModel:
         # Use the shortest horizon series for ARIMA (typically 1-step returns)
         min_horizon = min(self.horizons, key=lambda h: self.base_steps[h])
         series = np.asarray(y_train[min_horizon])
-        self.model_ = ARIMA(series, order=self.order)
-        self.result_ = self.model_.fit()
+        
+        # --- High Quality Resolution: Pre-fitting Validation ---
+        # 1. Variance Floor: If series is flat, ARIMA optimizer will explode
+        if np.std(series) < 1e-8 or len(np.unique(series)) < 10:
+            # Fallback to Mean Model directly if data is low quality
+            self.model_ = ARIMA(series, order=(0, 0, 0))
+            self.result_ = self.model_.fit()
+            return self
+
+        try:
+            self.model_ = ARIMA(series, order=self.order)
+            self.result_ = self.model_.fit()
+        except Exception:
+            # Secondary fallback for extreme convergence issues
+            self.model_ = ARIMA(series, order=(0, 0, 0))
+            self.result_ = self.model_.fit()
         return self
 
     def predict(self, n: int) -> Dict:

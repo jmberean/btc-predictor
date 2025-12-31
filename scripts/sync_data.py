@@ -1,12 +1,17 @@
 import os
+import os
 import subprocess
 import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
+from btc_predictor.utils.logging import setup_logging
 
 def run_command(cmd):
     print(f"Executing: {' '.join(cmd)}")
     subprocess.check_call(cmd)
 
 def main():
+    setup_logging("sync_data")
     # Base arguments for both downloads
     base_args = [
         sys.executable, "scripts/download_binance_bulk.py",

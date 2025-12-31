@@ -33,6 +33,13 @@ def build_feature_frame(df: pd.DataFrame, cfg: Dict, external_dfs: Optional[List
     df = df.copy()
     df["log_close"] = np.log(df["close"])
     df["log_return_1"] = df["log_close"].diff()
+    
+    # --- High Quality Resolution: Source-Level Outlier Mitigation ---
+    # Clip returns at 4 std to prevent numerical instability in ARIMA/GARCH
+    # without destroying the signal.
+    ret_std = df["log_return_1"].std()
+    if not np.isnan(ret_std) and ret_std > 0:
+        df["log_return_1"] = df["log_return_1"].clip(lower=-4*ret_std, upper=4*ret_std)
 
     lags: List[int] = cfg["features"]["lags"]
     rolling_windows: List[int] = cfg["features"]["rolling_windows"]

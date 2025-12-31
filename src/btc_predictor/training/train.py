@@ -56,12 +56,17 @@ def _model_fit_predict(model_name: str, model, x_train, y_train, x_test):
     return preds
 
 
-def _tune_lightgbm_params(x_train, y_train, cfg, seed: int):
+def _tune_lightgbm_params(x_train: pd.DataFrame, y_train: Dict, cfg, seed: int):
     from btc_predictor.models.tree import LightGBMQuantileModel
 
     base_params = dict(cfg.get("lightgbm", {}))
     base_params.setdefault("random_state", seed)
     base_params.setdefault("n_jobs", cfg["training"].get("n_jobs", -1))
+    # Standardize params to avoid overlap warnings during tuning too
+    if "min_data_in_leaf" in base_params:
+        base_params["min_child_samples"] = None
+    base_params["verbose"] = -1
+
     max_trials = int(cfg["training"].get("max_trials", 10))
     if max_trials <= 1:
         return base_params
@@ -72,8 +77,11 @@ def _tune_lightgbm_params(x_train, y_train, cfg, seed: int):
     if n < 100:
         return base_params
     split_idx = int(n * 0.8)
-    x_sub, x_val = x_train[:split_idx], x_train[split_idx:]
-    y_sub, y_val = y_train[short_label][:split_idx], y_train[short_label][split_idx:]
+    
+    # Keep as DataFrames for feature name preservation
+    x_sub, x_val = x_train.iloc[:split_idx], x_train.iloc[split_idx:]
+    y_sub = {short_label: y_train[short_label][:split_idx]}
+    y_val_series = y_train[short_label][split_idx:]
 
     search_space = {
         "learning_rate": [0.01, 0.03, 0.05],
@@ -92,10 +100,13 @@ def _tune_lightgbm_params(x_train, y_train, cfg, seed: int):
     for params in sampler:
         trial_params = dict(base_params)
         trial_params.update(params)
+        if "min_data_in_leaf" in trial_params:
+            trial_params["min_child_samples"] = None
+            
         model = LightGBMQuantileModel(params=trial_params, quantiles=[0.5], horizons=[short_label])
-        model.fit(x_sub, {short_label: y_sub})
+        model.fit(x_sub, y_sub)
         pred = model.predict(x_val)[short_label][0.5]
-        err = np.mean(np.abs(y_val - pred))
+        err = np.mean(np.abs(y_val_series - pred))
         if err < best_mae:
             best_mae = err
             best_params = trial_params
@@ -141,7 +152,8 @@ def run_train(cfg_path: str) -> str:
              if len(splits) > 0:
                  print("Tuning LightGBM parameters...")
                  tune_train_idx = splits[0][0]
-                 tune_x = x_all[tune_train_idx]
+                 # Pass as DataFrame to preserve feature names
+                 tune_x = dataset.loc[tune_train_idx, feature_cols]
                  tune_y = {label: y_all[label][tune_train_idx] for label in horizon_labels}
                  tuned_params = _tune_lightgbm_params(tune_x, tune_y, cfg, seed=cfg.get("seed", 42))
                  print(f"Best params found: {tuned_params}")

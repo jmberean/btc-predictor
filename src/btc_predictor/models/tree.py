@@ -22,6 +22,10 @@ def _fit_single_model(
     # Force single threaded for inner model to allow outer parallelism
     local_params = dict(params)
     local_params["n_jobs"] = 1
+    # Silence overlap warning: min_data_in_leaf is set, so clear min_child_samples
+    if "min_data_in_leaf" in local_params:
+        local_params["min_child_samples"] = None
+    local_params["verbose"] = -1
     
     model = lgb.LGBMRegressor(objective="quantile", alpha=quantile, **local_params)
     model.fit(x, y, eval_set=eval_set, eval_metric=eval_metric, callbacks=callbacks)
@@ -45,6 +49,7 @@ class LightGBMQuantileModel:
 
     def __post_init__(self):
         self.models_ = {}
+        self.feature_name_ = None
 
     def fit(
         self,
@@ -57,6 +62,11 @@ class LightGBMQuantileModel:
         x_full: Optional[np.ndarray] = None,
         y_full: Optional[Dict] = None,
     ) -> "LightGBMQuantileModel":
+        if hasattr(x, "columns"):
+            self.feature_name_ = list(x.columns)
+        elif hasattr(x_full, "columns"):
+            self.feature_name_ = list(x_full.columns)
+            
         self.models_ = {}
         
         tasks = []
@@ -98,6 +108,10 @@ class LightGBMQuantileModel:
         return self
 
     def predict(self, x) -> Dict:
+        import pandas as pd
+        if self.feature_name_ and not isinstance(x, pd.DataFrame):
+            x = pd.DataFrame(x, columns=self.feature_name_)
+            
         preds = {}
         for h in self.horizons:
             preds[h] = {q: self.models_[h][q].predict(x) for q in self.quantiles}

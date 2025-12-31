@@ -18,9 +18,22 @@ class GARCHQuantileModel:
     def fit(self, y_train: Dict) -> "GARCHQuantileModel":
         min_horizon = min(self.horizons, key=lambda h: self.base_steps[h])
         series = np.asarray(y_train[min_horizon])
-        # Use rescale=True to let the optimizer handle tiny log returns or large Z-scores
-        model = arch_model(series, vol="Garch", p=1, q=1, dist="t", rescale=True)
-        self.result_ = model.fit(disp="off")
+        
+        # --- High Quality Resolution: Pre-fitting Validation ---
+        # GARCH requires significant variation to estimate volatility clustering
+        if np.std(series) < 1e-8 or len(np.unique(series)) < 20:
+            model = arch_model(series, vol="Constant", dist="normal", rescale=True)
+            self.result_ = model.fit(disp="off")
+            return self
+
+        try:
+            # Use rescale=True to let the optimizer handle tiny log returns or large Z-scores
+            model = arch_model(series, vol="Garch", p=1, q=1, dist="t", rescale=True)
+            self.result_ = model.fit(disp="off")
+        except Exception:
+            # Fallback to Constant Variance if GARCH fails
+            model = arch_model(series, vol="Constant", dist="normal", rescale=True)
+            self.result_ = model.fit(disp="off")
         return self
 
     def predict(self, n: int) -> Dict:

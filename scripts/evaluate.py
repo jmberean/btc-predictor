@@ -9,6 +9,7 @@ import pandas as pd
 
 from btc_predictor.evaluation.metrics import reliability_curve
 from btc_predictor.evaluation.plots import plot_forecast_intervals, plot_reliability
+from btc_predictor.utils.logging import setup_logging
 
 
 def aggregate_metrics(metrics_df: pd.DataFrame) -> pd.DataFrame:
@@ -59,6 +60,7 @@ def performance_by_period(preds_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
+    setup_logging("evaluate")
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifacts", required=True)
     args = parser.parse_args()

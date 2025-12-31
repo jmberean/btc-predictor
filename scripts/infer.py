@@ -5,9 +5,11 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from btc_predictor.inference.predict import run_inference
+from btc_predictor.utils.logging import setup_logging
 
 
 def main():
+    setup_logging("infer")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--model", required=True, nargs="+")
