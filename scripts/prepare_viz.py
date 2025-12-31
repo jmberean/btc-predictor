@@ -41,7 +41,10 @@ def main():
     forecast_viz = []
     forecast_viz.append({"time": last_time, "p10": last_price, "p50": last_price, "p90": last_price})
 
-    for horizon in ["1h", "2h", "4h", "8h", "12h", "24h"]:
+    # Magnification factor for visualization (boosts Z-score by 10x to see the slope)
+    MAGNIFY = 10.0
+
+    for horizon in [f"{i}h" for i in range(1, 31)]:
         h_int = int(horizon.replace("h", ""))
         target_time = last_time + (h_int * 3600)
         scale = current_vol * np.sqrt(h_int)
@@ -50,7 +53,8 @@ def main():
         z50 = forecast_df[(forecast_df["horizon"] == horizon) & (forecast_df["quantile"] == 0.5)]["y_pred"].values[0]
         z90 = forecast_df[(forecast_df["horizon"] == horizon) & (forecast_df["quantile"] == 0.9)]["y_pred"].values[0]
         
-        sorted_rets = sorted([z10 * scale, z50 * scale, z90 * scale])
+        # Apply magnification to the center and bounds
+        sorted_rets = sorted([z10 * scale * MAGNIFY, z50 * scale * MAGNIFY, z90 * scale * MAGNIFY])
         
         forecast_viz.append({
             "time": target_time,
