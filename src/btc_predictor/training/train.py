@@ -254,9 +254,11 @@ def run_train(cfg_path: str) -> str:
 
             model_path = os.path.join(out_dir, "models", f"{model_name}_fold{fold_idx}.joblib")
             try:
+                # If model has a 'net' attribute (PyTorch), try to save it specifically or ensure joblib can handle it
+                # LSTMQuantileModel and NBEATSModel both have .net
                 joblib.dump(model, model_path)
-            except Exception:
-                # Some models may not be serializable; skip if needed.
+            except Exception as e:
+                print(f"WARNING: Could not save model {model_name} fold {fold_idx}: {e}")
                 pass
 
     metrics_df = pd.DataFrame(all_metrics)

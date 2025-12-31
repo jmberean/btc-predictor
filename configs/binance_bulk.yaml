@@ -38,34 +38,34 @@ training:
     step_days: 365
     embargo_hours: 168
     purge_hours: 24
-  early_stopping_rounds: 50
-  max_trials: 30
+  early_stopping_rounds: 100
+  max_trials: 20 # Optimized search
   n_jobs: 4
 
 lightgbm:
-  n_estimators: 600
-  learning_rate: 0.03
-  num_leaves: 127
-  min_data_in_leaf: 40
-  subsample: 0.9
-  colsample_bytree: 0.9
+  n_estimators: 2000 # Deeper forest
+  learning_rate: 0.01
+  num_leaves: 255
+  min_data_in_leaf: 20
+  subsample: 0.8
+  colsample_bytree: 0.8
 
 lstm:
-  hidden_size: 96
-  num_layers: 2
-  dropout: 0.15
-  epochs: 20
-  batch_size: 128
-  lr: 0.001
+  hidden_size: 256 # Larger brain
+  num_layers: 3
+  dropout: 0.2
+  epochs: 100 # More iterations
+  batch_size: 64
+  lr: 0.0005
 
 nbeats:
-  hidden_size: 512
-  num_blocks: 3
+  hidden_size: 1024 # High resolution
+  num_blocks: 5
   num_layers: 4
   dropout: 0.1
-  epochs: 20
-  batch_size: 128
-  lr: 0.001
+  epochs: 100 # More iterations
+  batch_size: 64
+  lr: 0.0005
 
 external_data:
   funding_rate:

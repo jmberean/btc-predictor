@@ -20,7 +20,7 @@ def backtest_simple(
     # 2. Dynamic Position Sizing (Volatility Targeting)
     # We use a rolling window of the true returns to estimate current risk
     window = 168 # 1 week
-    rolling_vol = pd.Series(y_true).rolling(window, min_periods=24).std().fillna(method='bfill').values
+    rolling_vol = pd.Series(y_true).rolling(window, min_periods=24).std().bfill().values
     # Target a constant 1% risk per trade (standardized by vol)
     target_vol = 0.01 
     pos_size = np.clip(target_vol / (rolling_vol + 1e-8), 0, max_leverage)

@@ -157,10 +157,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--model", required=True, help="Space-separated list of model paths")
     parser.add_argument("--asof", default=None)
     parser.add_argument("--output", default="forecast.csv")
     args = parser.parse_args()
 
-    path = run_inference(args.config, args.model, args.asof, args.output)
+    model_list = args.model.split()
+    path = run_inference(args.config, model_list, args.asof, args.output)
     print(f"Saved forecast to {path}")

@@ -2,19 +2,6 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import numpy as np
-
-try:
-    import torch
-    from torch import nn
-    from torch.utils.data import DataLoader, Dataset
-except ImportError as exc:  # pragma: no cover - optional dependency
-    raise ImportError("torch is required for deep models") from exc
-
-
-from dataclasses import dataclass
-from typing import Dict, List, Optional
-
-import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
 try:
@@ -29,10 +16,6 @@ class SequenceDataset(Dataset):
     def __init__(self, x: np.ndarray, y: Dict, horizons: List, lookback: int):
         # x shape: (N, Features)
         # Create sliding windows. Shape: (N - lookback + 1, lookback, Features)
-        # We need to ensure we align with y.
-        # If x has length N, and we need lookback L:
-        # The first valid sequence ends at index L-1 (0-based).
-        # The corresponding target is at index L-1.
         
         self.lookback = lookback
         self.horizons = horizons
@@ -42,31 +25,16 @@ class SequenceDataset(Dataset):
              self.y_array = np.empty((0, len(horizons)))
              return
 
-        # sliding_window_view returns (N - L + 1, F, L) when sliding over axis 0 of (N, F) ?
-        # Wait, if x is (N, F).
-        # Docs: "The window dimensions are added at the end of the output shape."
-        # If I slide over axis 0: shape becomes (N-L+1, F, L).
-        # We want (N-L+1, L, F).
-        # So we need to swap the last two axes?
-        # Actually no, verify this.
-        # If x is 1D (N,), result is (N-L+1, L).
-        # If x is 2D (N, F), and we slide axis 0.
-        # The result shape is (N-L+1, F, L).
-        # Yes, we need to swap axes 1 and 2.
-        
         windows = sliding_window_view(x, window_shape=lookback, axis=0)
         self.x_windows = np.swapaxes(windows, 1, 2)
         
         # Pre-stack y. Each y[h] is (N,). Stack to (N, H).
         # We need to slice y to match the valid windows.
-        # The sliding view's 0-th element corresponds to x[0:lookback], ending at x[lookback-1].
-        # So we need y starting from lookback-1.
         y_stacked = np.stack([y[h] for h in horizons], axis=1) # (N, H)
         self.y_array = y_stacked[lookback - 1:]
 
         # Safety check
         if len(self.x_windows) != len(self.y_array):
-            # This might happen if x and y lengths differed slightly, though they shouldn't.
             min_len = min(len(self.x_windows), len(self.y_array))
             self.x_windows = self.x_windows[:min_len]
             self.y_array = self.y_array[:min_len]
@@ -75,11 +43,9 @@ class SequenceDataset(Dataset):
         return len(self.x_windows)
 
     def __getitem__(self, idx):
-        # Returns (seq_len, features), (horizons,)
-        # Data is already float (usually), but ensure tensor conversion
         return (
-            torch.as_tensor(self.x_windows[idx], dtype=torch.float32),
-            torch.as_tensor(self.y_array[idx], dtype=torch.float32)
+            torch.as_tensor(self.x_windows[idx].copy(), dtype=torch.float32),
+            torch.as_tensor(self.y_array[idx].copy(), dtype=torch.float32),
         )
 
 

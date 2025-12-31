@@ -18,16 +18,26 @@ class GARCHQuantileModel:
     def fit(self, y_train: Dict) -> "GARCHQuantileModel":
         min_horizon = min(self.horizons, key=lambda h: self.base_steps[h])
         series = np.asarray(y_train[min_horizon])
-        model = arch_model(series * 100, vol="Garch", p=1, q=1, dist="t")
+        # Use rescale=True to let the optimizer handle tiny log returns or large Z-scores
+        model = arch_model(series, vol="Garch", p=1, q=1, dist="t", rescale=True)
         self.result_ = model.fit(disp="off")
         return self
 
     def predict(self, n: int) -> Dict:
+        if hasattr(n, "__len__"):
+            n = len(n)
+            
+        if n == 0:
+            return {h: {q: np.array([]) for q in self.quantiles} for h in self.horizons}
+            
         max_steps = max(self.base_steps.values())
-        total_steps = n + max_steps - 1
+        total_steps = int(n + max_steps)
         forecasts = self.result_.forecast(horizon=total_steps)
         var_path = np.asarray(forecasts.variance.iloc[-1].values, dtype=float)
-        sigma_path = np.sqrt(var_path) / 100.0
+        
+        # Scaling correction: arch_model.rescale_index tracks what multiplier was used
+        scale = getattr(self.result_, 'scale', 1.0)
+        sigma_path = np.sqrt(var_path) / scale
         preds = {}
         for h in self.horizons:
             step = self.base_steps[h]

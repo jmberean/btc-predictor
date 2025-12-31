@@ -61,7 +61,11 @@ def build_feature_frame(df: pd.DataFrame, cfg: Dict, external_dfs: Optional[List
 
     df["hour"] = df["timestamp"].dt.hour
     df["dow"] = df["timestamp"].dt.dayofweek
+    df["hour_of_week"] = df["dow"] * 24 + df["hour"]
     df["is_weekend"] = (df["dow"] >= 5).astype(int)
+    
+    df["volume_momentum_6"] = df["volume"] / (df["volume"].rolling(6).mean() + 1e-8)
+    df["volume_momentum_24"] = df["volume"] / (df["volume"].rolling(24).mean() + 1e-8)
 
     vol_ref = df["log_return_1"].rolling(regime_window).std()
     df["vol_regime"] = (vol_ref > vol_ref.rolling(regime_window).median()).astype(int)

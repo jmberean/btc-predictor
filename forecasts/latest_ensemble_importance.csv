@@ -1,6 +1,6 @@
 feature,importance
-log_return_1,453
-hour,388
-log_return_lag_1,368
-log_return_lag_48,362
-basis_index,352
+log_return_1,406
+hour,366
+hour_of_week,351
+basis_index,334
+momentum_24,332
