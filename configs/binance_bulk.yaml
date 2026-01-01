@@ -38,9 +38,9 @@ training:
     step_days: 180 # Semi-annual steps (more folds)
     embargo_hours: 168
     purge_hours: 24
-  early_stopping_rounds: 100
+  early_stopping_rounds: 10
   max_trials: 80 # High-intensity search
-  n_jobs: 4
+  n_jobs: 10
 
 lightgbm:
   n_estimators: 2000 # Deeper forest
@@ -54,8 +54,8 @@ lstm:
   hidden_size: 256 # Larger brain
   num_layers: 3
   dropout: 0.2
-  epochs: 100 # More iterations
-  batch_size: 64
+  epochs: 15 # TEMP: Reduced for speed
+  batch_size: 512
   lr: 0.0005
 
 nbeats:
@@ -63,8 +63,8 @@ nbeats:
   num_blocks: 5
   num_layers: 4
   dropout: 0.1
-  epochs: 100 # More iterations
-  batch_size: 64
+  epochs: 15 # TEMP: Reduced for speed
+  batch_size: 512
   lr: 0.0005
 
 external_data:

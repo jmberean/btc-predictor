@@ -177,6 +177,7 @@ def run_train(cfg_path: str) -> str:
                     params=tuned_params,
                     quantiles=cfg["training"]["quantiles"],
                     horizons=horizon_labels,
+                    n_jobs=cfg["training"].get("n_jobs", -1),
                 )
                 early_stopping = cfg["training"].get("early_stopping_rounds")
                 val_fraction = cfg.get("lightgbm", {}).get("val_fraction", cfg["training"].get("val_fraction", 0.2))
@@ -250,6 +251,15 @@ def run_train(cfg_path: str) -> str:
                     if model_q is None:
                         continue
                     importances = model_q.feature_importances_
+                    
+                    # Dynamically adjust feature names for Chained models
+                    current_feats = feature_cols
+                    if len(importances) == len(feature_cols) + 1:
+                        current_feats = feature_cols + ["prev_horizon_val"]
+                    elif len(importances) != len(feature_cols):
+                         # Fallback for safety
+                         current_feats = [f"feat_{i}" for i in range(len(importances))]
+
                     all_importances.append(
                         pd.DataFrame(
                             {
@@ -257,7 +267,7 @@ def run_train(cfg_path: str) -> str:
                                 "fold": fold_idx,
                                 "horizon": label,
                                 "horizon_timedelta": str(h),
-                                "feature": feature_cols,
+                                "feature": current_feats,
                                 "importance": importances,
                             }
                         )

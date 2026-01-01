@@ -71,16 +71,24 @@ def main():
     if not os.path.exists(metrics_path) or not os.path.exists(preds_path):
         raise FileNotFoundError("metrics.csv and predictions.csv are required")
 
+    print(f"Loading metrics from {metrics_path}...")
     metrics_df = pd.read_csv(metrics_path)
+    print(f"Loading predictions from {preds_path}...")
     preds_df = pd.read_csv(preds_path)
 
+    print("Aggregating metrics...")
     agg = aggregate_metrics(metrics_df)
     agg.to_csv(os.path.join(args.artifacts, "metrics_aggregated.csv"), index=False)
 
     plots_dir = os.path.join(args.artifacts, "plots")
     os.makedirs(plots_dir, exist_ok=True)
 
-    for (model, horizon), group in preds_df.groupby(["model", "horizon"]):
+    print(f"Generating plots in {plots_dir}...")
+    groups = list(preds_df.groupby(["model", "horizon"]))
+    total_groups = len(groups)
+    
+    for i, ((model, horizon), group) in enumerate(groups, 1):
+        print(f"  [{i}/{total_groups}] Plotting {model} - {horizon}...", end="\r")
         pivot = group.pivot_table(index=["timestamp", "prediction_time", "y_true"], columns="quantile", values="y_pred")
         pivot = pivot.reset_index()
         quantile_preds = {q: pivot[q].values for q in pivot.columns if isinstance(q, float)}
@@ -99,13 +107,14 @@ def main():
             title=f"Reliability {model} {horizon}",
             path=os.path.join(plots_dir, f"reliability_{model}_{horizon}.png"),
         )
+    print("\nPlotting complete.")
 
+    print("Calculating stability by regime...")
     stability = stability_by_regime(preds_df)
     stability.to_csv(os.path.join(args.artifacts, "stability_by_regime.csv"), index=False)
 
+    print("Calculating performance by period...")
     periodic = performance_by_period(preds_df)
     periodic.to_csv(os.path.join(args.artifacts, "performance_by_period.csv"), index=False)
-
-
-if __name__ == "__main__":
-    main()
+    
+    print("Evaluation complete.")

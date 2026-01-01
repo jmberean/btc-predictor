@@ -21,17 +21,18 @@ class SequenceDataset(Dataset):
         self.horizons = horizons
         
         if len(x) < lookback:
-             self.x_windows = np.empty((0, lookback, x.shape[1]))
-             self.y_array = np.empty((0, len(horizons)))
+             self.x_windows = np.empty((0, lookback, x.shape[1]), dtype=np.float32)
+             self.y_array = np.empty((0, len(horizons)), dtype=np.float32)
              return
 
         windows = sliding_window_view(x, window_shape=lookback, axis=0)
-        self.x_windows = np.swapaxes(windows, 1, 2)
+        # Materialize immediately to contiguous memory
+        self.x_windows = np.ascontiguousarray(np.swapaxes(windows, 1, 2), dtype=np.float32)
         
         # Pre-stack y. Each y[h] is (N,). Stack to (N, H).
         # We need to slice y to match the valid windows.
         y_stacked = np.stack([y[h] for h in horizons], axis=1) # (N, H)
-        self.y_array = y_stacked[lookback - 1:]
+        self.y_array = np.ascontiguousarray(y_stacked[lookback - 1:], dtype=np.float32)
 
         # Safety check
         if len(self.x_windows) != len(self.y_array):
@@ -44,8 +45,8 @@ class SequenceDataset(Dataset):
 
     def __getitem__(self, idx):
         return (
-            torch.as_tensor(self.x_windows[idx].copy(), dtype=torch.float32),
-            torch.as_tensor(self.y_array[idx].copy(), dtype=torch.float32),
+            torch.from_numpy(self.x_windows[idx]),
+            torch.from_numpy(self.y_array[idx]),
         )
 
 
@@ -97,7 +98,7 @@ class LSTMQuantileModel:
     def fit(self, x: np.ndarray, y: Dict) -> "LSTMQuantileModel":
         self._ensure_device()
         dataset = SequenceDataset(x, y, self.horizons, self.lookback)
-        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
+        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
         opt = torch.optim.Adam(self.net.parameters(), lr=self.lr)
         self.net.train()
 

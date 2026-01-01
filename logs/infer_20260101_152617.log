@@ -1,0 +1,13 @@
+--- Session Started: 20260101_152617 ---
+--- Log File: logs/infer_20260101_152617.log ---
+WARNING: Model path artifacts/20260101_195712/models/lightgbm_fold6.joblib artifacts/20260101_195712/models/lstm_fold6.joblib artifacts/20260101_195712/models/nbeats_fold6.joblib not found, skipping.
+Traceback (most recent call last):
+  File "/Users/johnb/Workspace/btc-predictor/scripts/infer.py", line 26, in <module>
+    main()
+  File "/Users/johnb/Workspace/btc-predictor/scripts/infer.py", line 21, in main
+    out_path = run_inference(args.config, args.model, args.asof, args.output, weights=args.weights)
+  File "/Users/johnb/Workspace/btc-predictor/src/btc_predictor/inference/predict.py", line 161, in run_inference
+    model = joblib.load(m_path)
+  File "/Users/johnb/Workspace/btc-predictor/.venv/lib/python3.10/site-packages/joblib/numpy_pickle.py", line 735, in load
+    with open(filename, "rb") as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'artifacts/20260101_195712/models/lightgbm_fold6.joblib artifacts/20260101_195712/models/lstm_fold6.joblib artifacts/20260101_195712/models/nbeats_fold6.joblib'

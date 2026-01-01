@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import json
@@ -21,7 +22,7 @@ def load_all_hist():
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--artifacts", help="Path to the artifacts directory (not strictly needed since we read forecasts/latest_ensemble.csv, but kept for consistency)")
+    parser.add_argument("--artifacts", help="Path to the artifacts directory")
     parser.add_argument("--output", default="dashboard/data.json", help="Path to save the dashboard data")
     args = parser.parse_args()
 
@@ -41,8 +42,12 @@ def main():
             "open": row.open, "high": row.high, "low": row.low, "close": row.close
         })
 
-    # Load 10/10 ensemble forecast (Z-scores) from forecasts/ directory
-    forecast_df = pd.read_csv("forecasts/latest_ensemble.csv")
+    # Load production ensemble forecast
+    forecast_path = "forecasts/production_ensemble.csv"
+    if not os.path.exists(forecast_path):
+        forecast_path = "forecasts/latest_ensemble.csv"
+        
+    forecast_df = pd.read_csv(forecast_path)
     available_horizons = forecast_df["horizon"].unique().tolist()
     # Sort horizons numerically (1h, 2h, ..., 12h)
     available_horizons.sort(key=lambda x: int(x.replace("h", "")))
@@ -73,8 +78,10 @@ def main():
         })
 
     # Load importance
-    # We prefer to find the importance file in the artifacts directory if provided
-    imp_path = "forecasts/latest_ensemble_importance.csv"
+    imp_path = "forecasts/production_ensemble_importance.csv"
+    if not os.path.exists(imp_path):
+        imp_path = "forecasts/latest_ensemble_importance.csv"
+        
     if args.artifacts:
         alt_path = os.path.join(args.artifacts, "feature_importance.csv")
         if os.path.exists(alt_path):

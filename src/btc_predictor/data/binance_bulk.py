@@ -23,6 +23,18 @@ KLINE_COLUMNS = [
     "ignore",
 ]
 
+DTYPE_MAP = {
+    "open": "float32",
+    "high": "float32",
+    "low": "float32",
+    "close": "float32",
+    "volume": "float32",
+    "quote_asset_volume": "float32",
+    "number_of_trades": "int32",
+    "taker_buy_base_asset_volume": "float32",
+    "taker_buy_quote_asset_volume": "float32",
+}
+
 
 def _resolve_files(path_or_glob: str | List[str]) -> List[str]:
     if isinstance(path_or_glob, list):
@@ -39,13 +51,39 @@ def _resolve_files(path_or_glob: str | List[str]) -> List[str]:
 
 
 def _read_csv(path: str, columns: List[str], usecols: Optional[List[int]] = None) -> pd.DataFrame:
-    df = pd.read_csv(path, header=None, names=columns, usecols=usecols)
-    if df.empty:
+    # First, peek at the first row to detect headers
+    try:
+        peek = pd.read_csv(path, header=None, nrows=1)
+        if peek.empty:
+            return pd.DataFrame(columns=columns)
+        
+        first_val = str(peek.iloc[0, 0]).lower()
+        has_header = "open_time" in first_val or "funding" in first_val
+        skiprows = 1 if has_header else 0
+        
+        df = pd.read_csv(
+            path,
+            header=None,
+            names=columns,
+            usecols=usecols,
+            dtype=DTYPE_MAP,
+            engine="c",
+            skiprows=skiprows
+        )
         return df
-    first = str(df.iloc[0, 0]).lower()
-    if "open_time" in first or "funding" in first:
-        df = df.iloc[1:].reset_index(drop=True)
-    return df
+    except (ValueError, TypeError):
+        # Fallback if dtype casting fails on mixed rows (rare with skiprows)
+        df = pd.read_csv(path, header=None, names=columns, usecols=usecols)
+        if df.empty:
+            return df
+        first = str(df.iloc[0, 0]).lower()
+        if "open_time" in first or "funding" in first:
+            df = df.iloc[1:].reset_index(drop=True)
+        # Final attempt to cast to optimized types
+        for col, dtype in DTYPE_MAP.items():
+            if col in df.columns:
+                 df[col] = pd.to_numeric(df[col], errors="coerce").astype(dtype)
+        return df
 
 
 def _read_zip(path: str, columns: List[str], usecols: Optional[List[int]] = None) -> pd.DataFrame:

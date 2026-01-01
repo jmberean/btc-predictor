@@ -1,0 +1,36 @@
+--- Session Started: 20251231_144919 ---
+--- Log File: logs/train_20251231_144919.log ---
+Traceback (most recent call last):
+  File "pandas/_libs/parsers.pyx", line 1161, in pandas._libs.parsers.TextReader._convert_tokens
+TypeError: Cannot cast array data from dtype('O') to dtype('float32') according to the rule 'safe'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/johnb/Workspace/btc-predictor/scripts/train.py", line 21, in <module>
+    main()
+  File "/Users/johnb/Workspace/btc-predictor/scripts/train.py", line 16, in main
+    out_dir = run_train(args.config)
+  File "/Users/johnb/Workspace/btc-predictor/scripts/../src/btc_predictor/training/train.py", line 122, in run_train
+    external_dfs = load_external_features(cfg)
+  File "/Users/johnb/Workspace/btc-predictor/scripts/../src/btc_predictor/data/external.py", line 38, in load_external_features
+    df = load_binance_bulk_kline_feature(
+  File "/Users/johnb/Workspace/btc-predictor/scripts/../src/btc_predictor/data/binance_bulk.py", line 220, in load_binance_bulk_kline_feature
+    raw = _read_files(path_or_glob, KLINE_COLUMNS, usecols=[0, 4])
+  File "/Users/johnb/Workspace/btc-predictor/scripts/../src/btc_predictor/data/binance_bulk.py", line 100, in _read_files
+    frames.append(_read_csv(path, columns, usecols=usecols))
+  File "/Users/johnb/Workspace/btc-predictor/scripts/../src/btc_predictor/data/binance_bulk.py", line 54, in _read_csv
+    df = pd.read_csv(
+  File "/Users/johnb/Workspace/btc-predictor/.venv/lib/python3.10/site-packages/pandas/io/parsers/readers.py", line 1026, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "/Users/johnb/Workspace/btc-predictor/.venv/lib/python3.10/site-packages/pandas/io/parsers/readers.py", line 626, in _read
+    return parser.read(nrows)
+  File "/Users/johnb/Workspace/btc-predictor/.venv/lib/python3.10/site-packages/pandas/io/parsers/readers.py", line 1923, in read
+    ) = self._engine.read(  # type: ignore[attr-defined]
+  File "/Users/johnb/Workspace/btc-predictor/.venv/lib/python3.10/site-packages/pandas/io/parsers/c_parser_wrapper.py", line 234, in read
+    chunks = self._reader.read_low_memory(nrows)
+  File "pandas/_libs/parsers.pyx", line 838, in pandas._libs.parsers.TextReader.read_low_memory
+  File "pandas/_libs/parsers.pyx", line 921, in pandas._libs.parsers.TextReader._read_rows
+  File "pandas/_libs/parsers.pyx", line 1066, in pandas._libs.parsers.TextReader._convert_column_data
+  File "pandas/_libs/parsers.pyx", line 1167, in pandas._libs.parsers.TextReader._convert_tokens
+ValueError: could not convert string to float: 'close'

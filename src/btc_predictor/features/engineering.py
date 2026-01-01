@@ -52,12 +52,17 @@ def build_feature_frame(df: pd.DataFrame, cfg: Dict, external_dfs: Optional[List
         df[f"momentum_{lag}"] = df["close"].pct_change(lag)
 
     for win in rolling_windows:
-        df[f"ret_mean_{win}"] = df["log_return_1"].rolling(win).mean()
-        df[f"ret_std_{win}"] = df["log_return_1"].rolling(win).std()
+        rolled = df["log_return_1"].rolling(win)
+        stats = rolled.agg(["mean", "std"])
+        df[f"ret_mean_{win}"] = stats["mean"]
+        df[f"ret_std_{win}"] = stats["std"]
+        
         df[f"realized_vol_{win}"] = np.sqrt((df["log_return_1"] ** 2).rolling(win).sum())
+        
+        vol_stats = df["volume"].rolling(win).agg(["mean", "std"])
         df[f"volume_z_{win}"] = (
-            (df["volume"] - df["volume"].rolling(win).mean())
-            / df["volume"].rolling(win).std()
+            (df["volume"] - vol_stats["mean"])
+            / vol_stats["std"]
         )
         df[f"price_sma_{win}"] = df["close"].rolling(win).mean() / df["close"] - 1
 

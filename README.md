@@ -24,8 +24,19 @@ Train the ensemble using a 24h Purge and 168h Embargo to ensure zero look-ahead 
 python scripts/train.py --config configs/binance_bulk.yaml
 ```
 *Artifacts are saved to `artifacts/YYYYMMDD_HHMMSS/`.*
+*Note: Configured for parallel execution (default `n_jobs: 10` for M4 Pro).*
 
-### 4. Production Ensemble Inference
+### 4. Evaluation & Backtest
+Validate statistical accuracy and simulate trading PnL to ensure model robustness before deployment.
+```bash
+# 1. Statistical Validation (Reliability Curves, MAE, Calibration)
+python scripts/evaluate.py --artifacts artifacts/<run_id>
+
+# 2. Trading Simulation (Simulated PnL with Fees/Slippage)
+python scripts/trading_eval.py --artifacts artifacts/<run_id> --horizon 1h
+```
+
+### 5. Production Ensemble Inference
 Generate a 12-hour "Consensus Forecast" using the top-performing folds from the ensemble.
 ```bash
 python scripts/infer.py \

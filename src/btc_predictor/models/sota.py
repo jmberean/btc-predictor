@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 try:
     import torch
@@ -13,21 +14,35 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
 class FlatSequenceDataset(Dataset):
     def __init__(self, x: np.ndarray, y: Dict, horizons: List, lookback: int):
-        self.x = x
-        self.y = y
         self.horizons = horizons
         self.lookback = lookback
-        self.indices = list(range(lookback - 1, len(x)))
+        
+        if len(x) < lookback:
+            self.x_flat = np.empty((0, x.shape[1] * lookback), dtype=np.float32)
+            self.y_vals = np.empty((0, len(horizons)), dtype=np.float32)
+            return
+
+        # Create sliding windows view first
+        windows = sliding_window_view(x, window_shape=lookback, axis=0)
+        # Shape: (N-L+1, L, F) -> Reshape to (N-L+1, L*F) and materialize
+        # Using reshape on a non-contiguous view might trigger copy anyway, but we do it once.
+        # We ensure it is contiguous float32.
+        self.x_flat = np.ascontiguousarray(windows.reshape(windows.shape[0], -1), dtype=np.float32)
+
+        # Pre-stack y
+        y_stacked = np.stack([y[h] for h in horizons], axis=1)
+        self.y_vals = np.ascontiguousarray(y_stacked[lookback - 1:], dtype=np.float32)
+
+        if len(self.x_flat) != len(self.y_vals):
+            min_len = min(len(self.x_flat), len(self.y_vals))
+            self.x_flat = self.x_flat[:min_len]
+            self.y_vals = self.y_vals[:min_len]
 
     def __len__(self):
-        return len(self.indices)
+        return len(self.x_flat)
 
     def __getitem__(self, idx):
-        i = self.indices[idx]
-        x_seq = self.x[i - self.lookback + 1 : i + 1]
-        x_flat = x_seq.reshape(-1)
-        y_vals = np.stack([self.y[h][i] for h in self.horizons], axis=0)
-        return torch.tensor(x_flat, dtype=torch.float32), torch.tensor(y_vals, dtype=torch.float32)
+        return torch.from_numpy(self.x_flat[idx]), torch.from_numpy(self.y_vals[idx])
 
 
 class NBeatsBlock(nn.Module):
@@ -94,7 +109,7 @@ class NBeatsQuantileModel:
     def fit(self, x: np.ndarray, y: Dict) -> "NBeatsQuantileModel":
         self._ensure_device()
         dataset = FlatSequenceDataset(x, y, self.horizons, self.lookback)
-        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
+        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
         opt = torch.optim.Adam(self.net.parameters(), lr=self.lr)
         self.net.train()
 
