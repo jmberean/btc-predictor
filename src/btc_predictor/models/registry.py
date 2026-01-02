@@ -29,12 +29,16 @@ def init_model(name: str, cfg, input_size: int) -> object:
 
         return GARCHQuantileModel(quantiles=quantiles, horizons=horizons, base_steps=base_steps)
     if name == "lightgbm":
-        from btc_predictor.models.tree import LightGBMQuantileModel
+        from btc_predictor.models.tree import LightGBMQuantileModel, LightGBMClassifierModel
 
         params = cfg.get("lightgbm", {})
         params = dict(params)
         params.setdefault("random_state", cfg.get("seed", 42))
         params.setdefault("n_jobs", cfg["training"].get("n_jobs", -1))
+        
+        if cfg["targets"].get("type") == "classification":
+            return LightGBMClassifierModel(params=params, horizons=horizons, n_jobs=params["n_jobs"])
+        
         return LightGBMQuantileModel(params=params, quantiles=quantiles, horizons=horizons)
     if name == "lstm":
         from btc_predictor.models.deep import LSTMQuantileModel

@@ -27,6 +27,11 @@ def setup_logging(name, log_dir="logs"):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(log_dir, f"{name}_{timestamp}.log")
     
+    # Mute verbosity from external libraries
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
+    warnings.filterwarnings("ignore", category=UserWarning, module="statsmodels")
+    warnings.filterwarnings("ignore", message="X does not have valid feature names")
+    
     # Redirect stdout and stderr
     sys.stdout = TLogger(log_file, sys.stdout)
     sys.stderr = TLogger(log_file, sys.stderr)

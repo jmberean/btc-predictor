@@ -58,7 +58,7 @@ def _read_csv(path: str, columns: List[str], usecols: Optional[List[int]] = None
             return pd.DataFrame(columns=columns)
         
         first_val = str(peek.iloc[0, 0]).lower()
-        has_header = "open_time" in first_val or "funding" in first_val
+        has_header = "open_time" in first_val or "funding" in first_val or "create_time" in first_val
         skiprows = 1 if has_header else 0
         
         df = pd.read_csv(
@@ -77,7 +77,7 @@ def _read_csv(path: str, columns: List[str], usecols: Optional[List[int]] = None
         if df.empty:
             return df
         first = str(df.iloc[0, 0]).lower()
-        if "open_time" in first or "funding" in first:
+        if "open_time" in first or "funding" in first or "create_time" in first:
             df = df.iloc[1:].reset_index(drop=True)
         # Final attempt to cast to optimized types
         for col, dtype in DTYPE_MAP.items():
@@ -100,7 +100,7 @@ def _read_zip(path: str, columns: List[str], usecols: Optional[List[int]] = None
     if df.empty:
         return df
     first = str(df.iloc[0, 0]).lower()
-    if "open_time" in first or "funding" in first:
+    if "open_time" in first or "funding" in first or "create_time" in first:
         df = df.iloc[1:].reset_index(drop=True)
     return df
 
@@ -283,6 +283,66 @@ def load_binance_bulk_funding_rate(
     raw["funding_rate"] = pd.to_numeric(raw["funding_rate"], errors="coerce")
 
     df = raw[["funding_time", "funding_rate"]].rename(columns={"funding_time": "timestamp"})
+    df = ensure_timezone(df, tz=tz)
+    df = _filter_timeframe(df, start, end)
+    df = df.sort_values("timestamp").drop_duplicates("timestamp").reset_index(drop=True)
+    return df
+
+
+def load_binance_bulk_metrics(
+    path_or_glob: str,
+    tz: str = "UTC",
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> pd.DataFrame:
+    # Schema: create_time, symbol, sum_open_interest, sum_open_interest_value, count_toptrader_long_short_ratio, 
+    #         sum_toptrader_long_short_ratio, count_long_short_ratio, sum_taker_long_short_vol_ratio
+    cols = [
+        "create_time", 
+        "symbol", 
+        "sum_open_interest", 
+        "sum_open_interest_value", 
+        "count_toptrader_long_short_ratio", 
+        "sum_toptrader_long_short_ratio", 
+        "count_long_short_ratio", 
+        "sum_taker_long_short_vol_ratio"
+    ]
+    
+    # We read all columns initially to handle parsing
+    files = _resolve_files(path_or_glob)
+    print(f"DEBUG: Found {len(files)} metrics files in {path_or_glob}")
+    
+    raw = _read_files(path_or_glob, cols)
+    print(f"DEBUG: Raw metrics shape: {raw.shape}")
+    if not raw.empty:
+        print(f"DEBUG: Raw head:\n{raw.head()}")
+    
+    if raw.empty:
+        raise FileNotFoundError(f"No metrics files found for {path_or_glob}")
+
+    # Ensure create_time is valid (ISO format in metrics files)
+    raw["create_time"] = pd.to_datetime(raw["create_time"], utc=True)
+    
+    # Convert numeric columns
+    numeric_cols = [
+        "sum_open_interest", 
+        "sum_open_interest_value", 
+        "count_long_short_ratio", 
+        "sum_taker_long_short_vol_ratio"
+    ]
+    for c in numeric_cols:
+        raw[c] = pd.to_numeric(raw[c], errors="coerce")
+
+    # Rename and select
+    df = raw.rename(columns={
+        "create_time": "timestamp",
+        "sum_open_interest": "open_interest",
+        "sum_open_interest_value": "open_interest_value",
+        "count_long_short_ratio": "ls_ratio",
+        "sum_taker_long_short_vol_ratio": "taker_ls_ratio"
+    })
+    
+    df = df[["timestamp", "open_interest", "open_interest_value", "ls_ratio", "taker_ls_ratio"]]
     df = ensure_timezone(df, tz=tz)
     df = _filter_timeframe(df, start, end)
     df = df.sort_values("timestamp").drop_duplicates("timestamp").reset_index(drop=True)

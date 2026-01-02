@@ -5,6 +5,7 @@ import pandas as pd
 from btc_predictor.data.binance_bulk import (
     load_binance_bulk_funding_rate,
     load_binance_bulk_kline_feature,
+    load_binance_bulk_metrics,
 )
 
 
@@ -33,7 +34,25 @@ def load_external_features(cfg: Dict) -> List[pd.DataFrame]:
             df["available_at"] = df["timestamp"] + delay
             dfs.append(df)
 
+    # NEW: Metrics (Open Interest)
+    metrics_cfg = ext_cfg.get("metrics")
+    if metrics_cfg and metrics_cfg.get("path"):
+        df = load_binance_bulk_metrics(
+            metrics_cfg["path"],
+            tz=tz,
+            start=metrics_cfg.get("start", start),
+            end=metrics_cfg.get("end", end),
+        )
+        if df.empty:
+            df = None
+        # Metrics are often delayed
+        delay = pd.Timedelta(minutes=metrics_cfg.get("delay_minutes", 15))
+        if df is not None:
+            df["available_at"] = df["timestamp"] + delay
+            dfs.append(df)
+
     mark_cfg = ext_cfg.get("mark_price_klines")
+
     if mark_cfg and mark_cfg.get("path"):
         df = load_binance_bulk_kline_feature(
             mark_cfg["path"],

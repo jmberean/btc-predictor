@@ -93,6 +93,34 @@ def build_feature_frame(df: pd.DataFrame, cfg: Dict, external_dfs: Optional[List
     if external_dfs:
         df = merge_external_features(df, external_dfs)
 
+    # --- Feature Engineering: Derivatives & Metrics ---
+    if "open_interest" in df.columns:
+        # OI Momentum
+        for lag in [1, 4, 24]:
+            df[f"oi_chg_{lag}"] = df["open_interest"].pct_change(lag)
+        
+        # OI Regime (High/Low relative to recent history)
+        oi_mean = df["open_interest"].rolling(regime_window).mean()
+        oi_std = df["open_interest"].rolling(regime_window).std()
+        df["oi_z"] = (df["open_interest"] - oi_mean) / oi_std
+        
+        # OI / Price Divergence
+        # +1: Rising Price + Rising OI (Strong Trend)
+        # -1: Rising Price + Falling OI (Weakening/Short Squeeze)
+        df["oi_price_corr"] = np.sign(df["open_interest"].diff()) * np.sign(df["close"].diff())
+
+    if "ls_ratio" in df.columns:
+        # Crowd Sentiment Z-Score
+        ls_mean = df["ls_ratio"].rolling(regime_window).mean()
+        ls_std = df["ls_ratio"].rolling(regime_window).std()
+        df["ls_ratio_z"] = (df["ls_ratio"] - ls_mean) / ls_std
+
+    if "taker_ls_ratio" in df.columns:
+        # Aggressive Flow Z-Score
+        taker_mean = df["taker_ls_ratio"].rolling(regime_window).mean()
+        taker_std = df["taker_ls_ratio"].rolling(regime_window).std()
+        df["taker_buy_sell_z"] = (df["taker_ls_ratio"] - taker_mean) / taker_std
+
     if "mark_close" in df.columns:
         df["basis_mark"] = df["mark_close"] / df["close"] - 1
     if "index_close" in df.columns:

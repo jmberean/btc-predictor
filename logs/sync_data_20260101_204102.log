@@ -1,0 +1,17 @@
+--- Session Started: 20260101_204102 ---
+--- Log File: logs/sync_data_20260101_204102.log ---
+--- Synchronizing Monthly Archives (Spot) ---
+Executing: /Users/johnb/Workspace/btc-predictor/.venv/bin/python scripts/download_binance_bulk.py --asset spot --data-type klines --data-frequency 1h --symbols BTCUSDT --output-dir data/binance --timeperiod monthly
+
+--- Synchronizing Daily Bars (Spot - Current Month) ---
+Executing: /Users/johnb/Workspace/btc-predictor/.venv/bin/python scripts/download_binance_bulk.py --asset spot --data-type klines --data-frequency 1h --symbols BTCUSDT --output-dir data/binance --timeperiod daily
+
+--- Synchronizing Funding Rates (Futures) ---
+Executing: /Users/johnb/Workspace/btc-predictor/.venv/bin/python scripts/download_binance_bulk.py --asset um --data-type fundingRate --symbols BTCUSDT --output-dir data/binance --timeperiod monthly
+Executing: /Users/johnb/Workspace/btc-predictor/.venv/bin/python scripts/download_binance_bulk.py --asset um --data-type fundingRate --symbols BTCUSDT --output-dir data/binance --timeperiod daily
+
+--- Synchronizing Metrics (Open Interest) ---
+Executing: /Users/johnb/Workspace/btc-predictor/.venv/bin/python scripts/download_binance_bulk.py --asset um --data-type metrics --symbols BTCUSDT --output-dir data/binance --timeperiod monthly
+Executing: /Users/johnb/Workspace/btc-predictor/.venv/bin/python scripts/download_binance_bulk.py --asset um --data-type metrics --symbols BTCUSDT --output-dir data/binance --timeperiod daily
+
+✅ Sync Complete. Data is up to date.

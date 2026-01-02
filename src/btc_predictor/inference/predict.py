@@ -152,6 +152,49 @@ def run_inference(cfg_path: str, model_paths: List[str], asof: str, output_path:
             )
 
     out_df = pd.DataFrame(rows)
+
+    # --- Meta-Model Gatekeeper ---
+    # Try to locate meta-model in the same dir as the first model
+    model_dir = os.path.dirname(model_paths[0])
+    meta_path = os.path.join(model_dir, "meta_rf.joblib")
+    
+    if os.path.exists(meta_path):
+        try:
+            meta_clf = joblib.load(meta_path)
+            
+            # Get the 1h Median prediction for the meta-feature
+            pred_1h = ensemble_preds[horizon_labels[0]][0.5]
+            
+            # Extract features (Ensure matching training order)
+            last_row = available.iloc[-1]
+            meta_input = pd.DataFrame([{
+                "rsi": last_row.get("rsi", 0),
+                "atr": last_row.get("atr", 0),
+                "vol_regime": last_row.get("vol_regime", 0),
+                "trend_regime": last_row.get("trend_regime", 0),
+                "volume_z_24": last_row.get("volume_z_24", 0),
+                "hour": last_row.get("hour", 0),
+                "dow": last_row.get("dow", 0),
+                "oi_z": last_row.get("oi_z", 0),
+                "ls_ratio_z": last_row.get("ls_ratio_z", 0),
+                "y_pred": pred_1h
+            }])
+            
+            prob_success = meta_clf.predict_proba(meta_input)[0, 1]
+            decision = "TRADE" if prob_success > 0.55 else "SKIP"
+            
+            out_df["meta_confidence"] = prob_success
+            out_df["final_decision"] = decision
+            print(f"Meta-Model Decision: {decision} (Confidence: {prob_success:.2%})")
+            
+        except Exception as e:
+            print(f"WARNING: Failed to run Meta-Model: {e}")
+            out_df["meta_confidence"] = None
+            out_df["final_decision"] = "Error"
+    else:
+        out_df["meta_confidence"] = None
+        out_df["final_decision"] = "No Meta-Model"
+
     out_df.to_csv(output_path, index=False)
 
     # NEW: Explainability (SHAP-lite)

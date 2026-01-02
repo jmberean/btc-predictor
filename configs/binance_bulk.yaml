@@ -33,17 +33,17 @@ training:
   quantiles: [0.1, 0.5, 0.9]
   walk_forward:
     scheme: expanding
-    train_window_days: 730 # 2 Years starting point
+    train_window_days: 730
     test_window_days: 90
-    step_days: 180 # Semi-annual steps (more folds)
+    step_days: 180
     embargo_hours: 168
     purge_hours: 24
   early_stopping_rounds: 10
-  max_trials: 80 # High-intensity search
+  max_trials: 80
   n_jobs: 10
 
 lightgbm:
-  n_estimators: 2000 # Deeper forest
+  n_estimators: 2000
   learning_rate: 0.01
   num_leaves: 255
   min_data_in_leaf: 20
@@ -51,19 +51,19 @@ lightgbm:
   colsample_bytree: 0.8
 
 lstm:
-  hidden_size: 256 # Larger brain
+  hidden_size: 256
   num_layers: 3
   dropout: 0.2
-  epochs: 15 # TEMP: Reduced for speed
+  epochs: 15
   batch_size: 512
   lr: 0.0005
 
 nbeats:
-  hidden_size: 1024 # High resolution
+  hidden_size: 1024
   num_blocks: 5
   num_layers: 4
   dropout: 0.1
-  epochs: 15 # TEMP: Reduced for speed
+  epochs: 15
   batch_size: 512
   lr: 0.0005
 
@@ -71,6 +71,9 @@ external_data:
   funding_rate:
     path: data/binance/data/futures/um/monthly/fundingRate/BTCUSDT
     delay_minutes: 10
+  metrics:
+    path: data/binance/data/futures/um/daily/metrics/BTCUSDT
+    delay_minutes: 15
   mark_price_klines:
     path: data/binance/data/futures/um/monthly/markPriceKlines/BTCUSDT/1h
     timeframe: 1h

@@ -287,6 +287,47 @@ class LightGBMQuantileModel:
         return preds
 
 
+@dataclass
+class LightGBMClassifierModel:
+    params: Dict
+    horizons: List
+    n_jobs: int = -1
+
+    def __post_init__(self):
+        self.models_ = {}
+
+    def fit(self, x, y: Dict, x_val=None, y_val=None, **kwargs):
+        self.models_ = {}
+        for h in self.horizons:
+            # Map -1, 0, 1 -> 0, 1, 2
+            y_h = y[h].astype(int) + 1
+            
+            clf = lgb.LGBMClassifier(**self.params, n_jobs=1)
+            clf.fit(x, y_h)
+            self.models_[h] = clf
+        return self
+
+    def predict(self, x) -> Dict:
+        preds = {}
+        for h in self.horizons:
+            probs = self.models_[h].predict_proba(x)
+            # Find probability of Class 2 (which corresponds to Label 1 = Profit)
+            # Classes are likely [0, 1, 2] corresponding to [-1, 0, 1]
+            classes = self.models_[h].classes_
+            
+            # Target is index where class == 2
+            target_idx = np.where(classes == 2)[0]
+            
+            if len(target_idx) > 0:
+                p_win = probs[:, target_idx[0]]
+            else:
+                p_win = np.zeros(len(x))
+                
+            # Store in q=0.5 slot for compatibility
+            preds[h] = {0.5: p_win}
+        return preds
+
+
 def _pinball_eval(q: float):
     def _eval(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[str, float, bool]:
         diff = y_true - y_pred

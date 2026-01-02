@@ -6,7 +6,61 @@ import pandas as pd
 from btc_predictor.config import get_base_frequency, get_horizon_labels, get_horizon_map, horizon_to_steps
 
 
+def build_triple_barrier_targets(raw_df: pd.DataFrame, cfg: Dict) -> pd.DataFrame:
+    df = raw_df[["timestamp", "close", "high", "low"]].copy()
+    base_frequency = get_base_frequency(cfg)
+    
+    tb_cfg = cfg["targets"].get("triple_barrier", {})
+    profit_pct = tb_cfg.get("profit", 0.02)
+    stop_pct = tb_cfg.get("stop", 0.01)
+    horizon_str = tb_cfg.get("barrier_horizon", "12h")
+    
+    steps = horizon_to_steps(horizon_str, base_frequency)
+    
+    labels = np.zeros(len(df), dtype=int)
+    closes = df["close"].values
+    highs = df["high"].values
+    lows = df["low"].values
+    n = len(df)
+    
+    # Fast iteration
+    for i in range(n - steps):
+        current_close = closes[i]
+        window_highs = highs[i+1 : i+steps+1]
+        window_lows = lows[i+1 : i+steps+1]
+        
+        take_profit = current_close * (1 + profit_pct)
+        stop_loss = current_close * (1 - stop_pct)
+        
+        hit_tp_mask = window_highs >= take_profit
+        hit_sl_mask = window_lows <= stop_loss
+        
+        has_tp = hit_tp_mask.any()
+        has_sl = hit_sl_mask.any()
+        
+        if has_tp and not has_sl:
+            labels[i] = 1
+        elif has_sl and not has_tp:
+            labels[i] = -1
+        elif has_tp and has_sl:
+            first_tp_idx = np.argmax(hit_tp_mask)
+            first_sl_idx = np.argmax(hit_sl_mask)
+            if first_tp_idx <= first_sl_idx:
+                labels[i] = 1
+            else:
+                labels[i] = -1
+        else:
+            labels[i] = 0
+            
+    df[f"y_{horizon_str}"] = labels
+    df[f"target_time_{horizon_str}"] = df["timestamp"] + pd.Timedelta(horizon_str)
+    return df[["timestamp", f"y_{horizon_str}", f"target_time_{horizon_str}"]]
+
+
 def build_targets(raw_df: pd.DataFrame, cfg: Dict) -> pd.DataFrame:
+    if cfg["targets"].get("type") == "classification":
+        return build_triple_barrier_targets(raw_df, cfg)
+
     df = raw_df[["timestamp", "close"]].copy()
     base_frequency = get_base_frequency(cfg)
     horizon_map = get_horizon_map(cfg)
