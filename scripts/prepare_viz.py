@@ -55,9 +55,6 @@ def main():
     forecast_viz = []
     forecast_viz.append({"time": last_time, "p10": last_price, "p50": last_price, "p90": last_price})
 
-    # Magnification factor for visualization (boosts Z-score by 10x to see the slope)
-    MAGNIFY = 10.0
-
     for horizon in available_horizons:
         h_int = int(horizon.replace("h", ""))
         target_time = last_time + (h_int * 3600)
@@ -68,7 +65,7 @@ def main():
         z90 = forecast_df[(forecast_df["horizon"] == horizon) & (forecast_df["quantile"] == 0.9)]["y_pred"].values[0]
         
         # Apply magnification to the center and bounds
-        sorted_rets = sorted([z10 * scale * MAGNIFY, z50 * scale * MAGNIFY, z90 * scale * MAGNIFY])
+        sorted_rets = sorted([z10 * scale, z50 * scale, z90 * scale])
         
         forecast_viz.append({
             "time": target_time,
